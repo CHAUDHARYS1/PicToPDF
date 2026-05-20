@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>PicToPDF — Images to PDF</title>
+<title>Pics2PDF — Images to PDF</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   :root {
@@ -282,6 +282,16 @@
     gap: 4px;
   }
   .logo-control .btn { padding: 4px 8px; font-size: 12px; }
+  .logo-remember-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-faint);
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .logo-remember-label input { cursor: pointer; accent-color: var(--accent); }
 
   /* ---------- Grid ---------- */
   .grid-wrap { padding: 16px; }
@@ -543,7 +553,7 @@
         <!-- page fold -->
         <path d="M28 4 L36 12 L36 4 Z" fill="#2563EB" opacity="0.25"/>
       </svg>
-      <div class="brand-text">Pic<span>To</span>PDF</div>
+      <div class="brand-text">Pics<span>2</span>PDF</div>
     </div>
     <div class="header-meta">
       <span class="privacy-pill" title="Files never leave your device">
@@ -613,6 +623,10 @@
           <div class="label">
             <div><strong id="logo-state">No logo</strong></div>
             <div style="font-size:11.5px;">Optional, bottom-right of each page</div>
+            <label class="logo-remember-label">
+              <input type="checkbox" id="logo-remember" />
+              Remember for next session
+            </label>
           </div>
           <div class="actions">
             <button class="btn" id="logo-pick">Upload</button>
@@ -647,7 +661,7 @@
 </main>
 
 <footer class="app">
-  PicToPDF — local-only image to PDF conversion.
+  Pics2PDF — local-only image to PDF conversion.
   Page size: <span class="mono">US Letter, portrait</span> ·
   Margin: <span class="mono" id="footer-margin">0.5"</span> ·
   Logo width: <span class="mono" id="footer-logo">1.0"</span>
@@ -662,8 +676,8 @@
 
 <script>
 /* =============================================================
-   PicToPDF — client-side images to PDF
-   Nothing is uploaded. Nothing is persisted.
+   Pics2PDF — client-side images to PDF
+   Nothing is uploaded. Nothing is persisted (except optional logo).
    ============================================================= */
 
 /* -------- Tunable constants -------- */
@@ -717,6 +731,7 @@ const els = {
   logoRemove:   $('#logo-remove'),
   logoInput:    $('#logo-input'),
   logoState:    $('#logo-state'),
+  logoRemember: $('#logo-remember'),
   toasts:       $('#toasts'),
 };
 
@@ -998,6 +1013,47 @@ els.clearAll.addEventListener('click', () => {
   render();
 });
 
+/* -------- Logo storage -------- */
+const LOGO_STORAGE_KEY  = 'pics2pdf_logo_data';
+const LOGO_REMEMBER_KEY = 'pics2pdf_logo_remember';
+
+function saveLogoToStorage() {
+  if (!state.logo) return;
+  try {
+    localStorage.setItem(LOGO_STORAGE_KEY, JSON.stringify({
+      name: state.logo.name,
+      dataUrl: state.logo.dataUrl,
+      type: state.logo.type,
+    }));
+    localStorage.setItem(LOGO_REMEMBER_KEY, 'true');
+  } catch (e) {
+    toast('Logo is too large to save in browser storage.', 'error');
+    els.logoRemember.checked = false;
+  }
+}
+
+function clearLogoFromStorage() {
+  localStorage.removeItem(LOGO_STORAGE_KEY);
+  localStorage.removeItem(LOGO_REMEMBER_KEY);
+}
+
+/* Restore remembered logo on page load */
+(function restoreLogoFromStorage() {
+  const remembered = localStorage.getItem(LOGO_REMEMBER_KEY) === 'true';
+  els.logoRemember.checked = remembered;
+  if (!remembered) return;
+  try {
+    const stored = localStorage.getItem(LOGO_STORAGE_KEY);
+    if (stored) {
+      const { name, dataUrl, type } = JSON.parse(stored);
+      state.logo = { file: null, name, dataUrl, type };
+      renderLogo();
+    }
+  } catch (e) {
+    localStorage.removeItem(LOGO_STORAGE_KEY);
+  }
+})();
+
 /* -------- Logo wiring -------- */
 els.logoPick.addEventListener('click', () => els.logoInput.click());
 els.logoInput.addEventListener('change', async (e) => {
@@ -1010,8 +1066,9 @@ els.logoInput.addEventListener('change', async (e) => {
   }
   try {
     const dataUrl = await readAsDataURL(f);
-    state.logo = { file: f, name: f.name, dataUrl };
+    state.logo = { file: f, name: f.name, dataUrl, type: f.type };
     renderLogo();
+    if (els.logoRemember.checked) saveLogoToStorage();
   } catch (err) {
     toast('Could not read logo file.', 'error');
   }
@@ -1019,6 +1076,15 @@ els.logoInput.addEventListener('change', async (e) => {
 els.logoRemove.addEventListener('click', () => {
   state.logo = null;
   renderLogo();
+  clearLogoFromStorage();
+  els.logoRemember.checked = false;
+});
+els.logoRemember.addEventListener('change', () => {
+  if (els.logoRemember.checked) {
+    if (state.logo) saveLogoToStorage();
+  } else {
+    clearLogoFromStorage();
+  }
 });
 function renderLogo() {
   if (state.logo) {
@@ -1051,15 +1117,15 @@ async function generatePDF() {
   try {
     const { PDFDocument } = PDFLib;
     const pdfDoc = await PDFDocument.create();
-    pdfDoc.setTitle('PicToPDF export');
-    pdfDoc.setCreator('PicToPDF');
-    pdfDoc.setProducer('PicToPDF');
+    pdfDoc.setTitle('Pics2PDF export');
+    pdfDoc.setCreator('Pics2PDF');
+    pdfDoc.setProducer('Pics2PDF');
 
     // Pre-embed logo (once)
     let embeddedLogo = null;
     if (state.logo) {
       const bytes = await dataUrlToBytes(state.logo.dataUrl);
-      embeddedLogo = await embedImage(pdfDoc, bytes, state.logo.file.type);
+      embeddedLogo = await embedImage(pdfDoc, bytes, state.logo.type);
     }
 
     for (let i = 0; i < selected.length; i++) {
@@ -1138,7 +1204,7 @@ function triggerDownload(bytes, filename) {
 function suggestedFilename() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
-  return `PicToPDF-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.pdf`;
+  return `Pics2PDF-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.pdf`;
 }
 
 /* -------- Progress overlay -------- */
