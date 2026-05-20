@@ -293,6 +293,51 @@
     gap: 4px;
   }
   .logo-control .btn { padding: 4px 8px; font-size: 12px; }
+  /* ---------- Filename input ---------- */
+  .filename-input {
+    font: inherit;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    width: 172px;
+  }
+  .filename-input:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+
+  /* ---------- Thumbnail rotate button ---------- */
+  .thumb-top-right { display: flex; gap: 4px; }
+  .thumb-rotate {
+    pointer-events: auto;
+    appearance: none;
+    border: none;
+    background: rgba(20, 20, 18, 0.72);
+    color: #fff;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 100ms ease;
+    backdrop-filter: blur(6px);
+  }
+  .thumb-rotate:hover { background: var(--accent); }
+  .thumb-rotate svg { width: 11px; height: 11px; }
+
+  /* ---------- Page-nums checkbox ---------- */
+  .page-nums-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .page-nums-label input { cursor: pointer; accent-color: var(--accent); }
+
   .logo-remember-label {
     display: inline-flex;
     align-items: center;
@@ -688,6 +733,11 @@
         <span class="sep"></span>
         <button class="btn subtle" id="select-all">Select all</button>
         <button class="btn subtle" id="deselect-all">Deselect all</button>
+        <span class="sep"></span>
+        <button class="btn subtle" id="rotate-all" title="Rotate all images 90° clockwise">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Rotate all
+        </button>
       </div>
 
       <div class="group">
@@ -713,6 +763,17 @@
           <option value="0.5" selected>Medium</option>
           <option value="1">Large</option>
         </select>
+        <span class="sep"></span>
+        <label class="ctrl-label" for="fit-mode">Fit</label>
+        <select class="ctrl-select" id="fit-mode">
+          <option value="contain" selected>Contain</option>
+          <option value="fill">Fill</option>
+          <option value="stretch">Stretch</option>
+        </select>
+        <label class="page-nums-label">
+          <input type="checkbox" id="page-nums" />
+          Page #s
+        </label>
       </div>
 
       <div class="spacer"></div>
@@ -743,6 +804,7 @@
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
           Clear all
         </button>
+        <input type="text" class="filename-input" id="filename-input" placeholder="output.pdf" spellcheck="false" title="PDF filename" />
         <button class="btn primary" id="make-pdf">
           <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>
           Convert to PDF
@@ -808,6 +870,8 @@ const settings = {
   pageSize:    'letter',
   orientation: 'portrait',
   margin:      0.5,
+  fitMode:     'contain',
+  pageNums:    false,
 };
 
 /* -------- In-memory state (no storage) -------- */
@@ -938,6 +1002,7 @@ async function addFiles(fileList) {
         name: f.name,
         dataUrl,
         checked: true,
+        rotation: 0,
       });
     } catch (e) {
       toast(`Could not read "${f.name}".`, 'error');
@@ -954,8 +1019,13 @@ async function addFiles(fileList) {
 /* -------- Render -------- */
 function render() {
   const has = state.items.length > 0;
+  const wasHidden = els.loaded.hidden;
   els.empty.hidden  = has;
   els.loaded.hidden = !has;
+  if (has && wasHidden) {
+    const fn = document.getElementById('filename-input');
+    if (fn && !fn.value) fn.value = suggestedFilename();
+  }
 
   // selection count
   const total = state.items.length;
@@ -975,14 +1045,21 @@ function render() {
 
     card.innerHTML = `
       <div class="thumb-img-wrap">
-        <img class="thumb-img" alt="" src="${escapeAttr(item.dataUrl)}" />
+        <img class="thumb-img" alt="" src="${escapeAttr(item.dataUrl)}" style="transform:rotate(${item.rotation || 0}deg)" />
         <div class="thumb-overlay">
           <span class="thumb-index">${idx + 1}</span>
-          <button class="thumb-remove" type="button" title="Remove image" aria-label="Remove ${escapeAttr(item.name)}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M6 6l12 12M18 6L6 18"/>
-            </svg>
-          </button>
+          <div class="thumb-top-right">
+            <button class="thumb-rotate" type="button" title="Rotate 90°" aria-label="Rotate ${escapeAttr(item.name)}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+            </button>
+            <button class="thumb-remove" type="button" title="Remove image" aria-label="Remove ${escapeAttr(item.name)}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M6 6l12 12M18 6L6 18"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
       <div class="thumb-foot">
@@ -1010,6 +1087,14 @@ function render() {
     });
     // prevent drag starting on the checkbox itself
     checkbox.addEventListener('mousedown', (e) => e.stopPropagation());
+
+    // rotate button
+    const rotateBtn = card.querySelector('.thumb-rotate');
+    rotateBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      item.rotation = ((item.rotation || 0) + 90) % 360;
+      render();
+    });
 
     // remove button
     const removeBtn = card.querySelector('.thumb-remove');
@@ -1177,6 +1262,8 @@ document.querySelector('.brand').addEventListener('click', async () => {
 /* -------- Page setup wiring -------- */
 $('#page-size').addEventListener('change', (e) => { settings.pageSize = e.target.value; });
 $('#page-margin').addEventListener('change', (e) => { settings.margin = parseFloat(e.target.value); });
+$('#fit-mode').addEventListener('change', (e) => { settings.fitMode = e.target.value; });
+$('#page-nums').addEventListener('change', (e) => { settings.pageNums = e.target.checked; });
 document.querySelectorAll('.orient-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     settings.orientation = btn.dataset.orient;
@@ -1185,6 +1272,10 @@ document.querySelectorAll('.orient-btn').forEach(btn => {
       b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
     });
   });
+});
+$('#rotate-all').addEventListener('click', () => {
+  state.items.forEach(i => { i.rotation = ((i.rotation || 0) + 90) % 360; });
+  render();
 });
 
 /* -------- Logo storage -------- */
@@ -1295,11 +1386,15 @@ async function generatePDF() {
     if (settings.orientation === 'landscape') { [pw, ph] = [ph, pw]; }
     const margin = settings.margin * POINTS_PER_INCH;
 
-    const { PDFDocument } = PDFLib;
+    const { PDFDocument, StandardFonts, rgb,
+            pushGraphicsState, popGraphicsState,
+            moveTo, lineTo, closePath, clip, endPath } = PDFLib;
     const pdfDoc = await PDFDocument.create();
     pdfDoc.setTitle('Pics2PDF export');
     pdfDoc.setCreator('Pics2PDF');
     pdfDoc.setProducer('Pics2PDF');
+
+    const font = settings.pageNums ? await pdfDoc.embedFont(StandardFonts.Helvetica) : null;
 
     // Pre-embed logo (once)
     let embeddedLogo = null;
@@ -1310,25 +1405,47 @@ async function generatePDF() {
 
     for (let i = 0; i < selected.length; i++) {
       const item = selected[i];
-      const bytes = await dataUrlToBytes(item.dataUrl);
-      const img = await embedImage(pdfDoc, bytes, item.file.type);
+
+      // Pre-rotate on canvas if needed so pdf-lib gets a correctly oriented image
+      let embedDataUrl = item.dataUrl;
+      let embedType = item.file.type;
+      if (item.rotation) {
+        embedDataUrl = await rotateDataUrl(item.dataUrl, item.rotation);
+        embedType = 'image/jpeg';
+      }
+      const bytes = await dataUrlToBytes(embedDataUrl);
+      const img = await embedImage(pdfDoc, bytes, embedType);
 
       const page = pdfDoc.addPage([pw, ph]);
-
-      // available content box
       const boxX = margin;
       const boxY = margin;
       const boxW = pw - 2 * margin;
       const boxH = ph - 2 * margin;
 
-      // scale image to fit inside the box preserving aspect
-      const scale = Math.min(boxW / img.width, boxH / img.height);
-      const drawW = img.width  * scale;
-      const drawH = img.height * scale;
-      const drawX = boxX + (boxW - drawW) / 2;
-      const drawY = boxY + (boxH - drawH) / 2;
-
-      page.drawImage(img, { x: drawX, y: drawY, width: drawW, height: drawH });
+      if (settings.fitMode === 'stretch') {
+        page.drawImage(img, { x: boxX, y: boxY, width: boxW, height: boxH });
+      } else if (settings.fitMode === 'fill') {
+        const scale = Math.max(boxW / img.width, boxH / img.height);
+        const drawW = img.width * scale;
+        const drawH = img.height * scale;
+        const drawX = boxX + (boxW - drawW) / 2;
+        const drawY = boxY + (boxH - drawH) / 2;
+        page.pushOperators(
+          pushGraphicsState(),
+          moveTo(boxX, boxY), lineTo(boxX + boxW, boxY),
+          lineTo(boxX + boxW, boxY + boxH), lineTo(boxX, boxY + boxH),
+          closePath(), clip(), endPath(),
+        );
+        page.drawImage(img, { x: drawX, y: drawY, width: drawW, height: drawH });
+        page.pushOperators(popGraphicsState());
+      } else { // contain
+        const scale = Math.min(boxW / img.width, boxH / img.height);
+        const drawW = img.width  * scale;
+        const drawH = img.height * scale;
+        const drawX = boxX + (boxW - drawW) / 2;
+        const drawY = boxY + (boxH - drawH) / 2;
+        page.drawImage(img, { x: drawX, y: drawY, width: drawW, height: drawH });
+      }
 
       // Logo: bottom-right, just inside the margin
       if (embeddedLogo) {
@@ -1339,13 +1456,31 @@ async function generatePDF() {
         page.drawImage(embeddedLogo, { x: lx, y: ly, width: lw, height: lh });
       }
 
+      // Page numbers
+      if (font) {
+        const label = `${i + 1} / ${selected.length}`;
+        const fontSize = 9;
+        const textW = font.widthOfTextAtSize(label, fontSize);
+        page.drawText(label, {
+          x: pw / 2 - textW / 2,
+          y: Math.max(margin / 2 - fontSize / 2, 8),
+          size: fontSize,
+          font,
+          color: rgb(0.55, 0.55, 0.55),
+        });
+      }
+
       overlay.update(i + 1, selected.length);
-      // yield occasionally
       if ((i + 1) % 3 === 0) await new Promise(r => setTimeout(r, 0));
     }
 
     const pdfBytes = await pdfDoc.save();
-    triggerDownload(pdfBytes, suggestedFilename());
+
+    const fnInput = document.getElementById('filename-input');
+    let filename = fnInput ? fnInput.value.trim() : '';
+    if (!filename) filename = suggestedFilename();
+    if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
+    triggerDownload(pdfBytes, filename);
 
     overlay.close();
     toast(`PDF ready — ${selected.length} page${selected.length === 1 ? '' : 's'}.`, 'success');
@@ -1408,6 +1543,25 @@ function showProgress(label) {
     },
     close() { node.remove(); },
   };
+}
+
+/* -------- Image rotation (canvas) -------- */
+function rotateDataUrl(dataUrl, deg) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const swap = deg === 90 || deg === 270;
+      const c = document.createElement('canvas');
+      c.width  = swap ? img.naturalHeight : img.naturalWidth;
+      c.height = swap ? img.naturalWidth  : img.naturalHeight;
+      const ctx = c.getContext('2d');
+      ctx.translate(c.width / 2, c.height / 2);
+      ctx.rotate(deg * Math.PI / 180);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+      resolve(c.toDataURL('image/jpeg', 0.92));
+    };
+    img.src = dataUrl;
+  });
 }
 
 /* -------- Utils -------- */
