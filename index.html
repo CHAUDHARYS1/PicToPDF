@@ -521,6 +521,40 @@
   }
   footer.app .mono { font-family: var(--mono); }
 
+  /* ---------- Page setup controls ---------- */
+  .ctrl-label {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .ctrl-select {
+    font: inherit;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 6px 8px;
+    cursor: pointer;
+  }
+  .ctrl-select:focus-visible {
+    outline: 2px solid var(--accent-ring);
+    outline-offset: 1px;
+  }
+  .orient-group {
+    display: inline-flex;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .orient-btn {
+    border: none;
+    border-radius: 0;
+    padding: 6px 10px;
+  }
+  .orient-btn + .orient-btn { border-left: 1px solid var(--border-strong); }
+  .orient-btn.active { background: var(--accent-soft); color: var(--accent); }
+
   /* hide native file inputs */
   .visually-hidden {
     position: absolute !important;
@@ -612,6 +646,31 @@
         <button class="btn subtle" id="deselect-all">Deselect all</button>
       </div>
 
+      <div class="group">
+        <label class="ctrl-label" for="page-size">Size</label>
+        <select class="ctrl-select" id="page-size">
+          <option value="letter">US Letter</option>
+          <option value="a4">A4</option>
+          <option value="legal">Legal</option>
+        </select>
+        <div class="orient-group">
+          <button class="btn orient-btn active" id="orient-portrait" data-orient="portrait" title="Portrait" aria-pressed="true">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/></svg>
+          </button>
+          <button class="btn orient-btn" id="orient-landscape" data-orient="landscape" title="Landscape" aria-pressed="false">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/></svg>
+          </button>
+        </div>
+        <span class="sep"></span>
+        <label class="ctrl-label" for="page-margin">Margin</label>
+        <select class="ctrl-select" id="page-margin">
+          <option value="0">None</option>
+          <option value="0.25">Small</option>
+          <option value="0.5" selected>Medium</option>
+          <option value="1">Large</option>
+        </select>
+      </div>
+
       <div class="spacer"></div>
 
       <div class="group">
@@ -661,10 +720,7 @@
 </main>
 
 <footer class="app">
-  Pics2PDF — local-only image to PDF conversion.
-  Page size: <span class="mono">US Letter, portrait</span> ·
-  Margin: <span class="mono" id="footer-margin">0.5"</span> ·
-  Logo width: <span class="mono" id="footer-logo">1.0"</span>
+  Built and managed by Shital's Design and Consultation
 </footer>
 
 <!-- Hidden file inputs -->
@@ -680,23 +736,24 @@
    Nothing is uploaded. Nothing is persisted (except optional logo).
    ============================================================= */
 
-/* -------- Tunable constants -------- */
-const PAGE_MARGIN_INCHES = 0.5;     // uniform white-space margin around every page
-const LOGO_WIDTH_INCHES  = 1.0;     // fixed display width of the logo (preserves aspect)
-const PAGE_WIDTH_INCHES  = 8.5;     // US Letter portrait
-const PAGE_HEIGHT_INCHES = 11;
-const POINTS_PER_INCH    = 72;      // PDF points
-const MAX_IMAGES_HINT    = 25;      // soft expectation
+/* -------- Constants -------- */
+const POINTS_PER_INCH   = 72;
+const LOGO_WIDTH_INCHES = 1.0;
+const LOGO_W            = LOGO_WIDTH_INCHES * POINTS_PER_INCH;
+const MAX_IMAGES_HINT   = 25;
 
-/* -------- Derived -------- */
-const PAGE_W = PAGE_WIDTH_INCHES  * POINTS_PER_INCH;   // 612
-const PAGE_H = PAGE_HEIGHT_INCHES * POINTS_PER_INCH;   // 792
-const MARGIN = PAGE_MARGIN_INCHES * POINTS_PER_INCH;
-const LOGO_W = LOGO_WIDTH_INCHES  * POINTS_PER_INCH;
+const PAGE_SIZES = {
+  letter: { w: 8.5,  h: 11    },
+  a4:     { w: 8.27, h: 11.69 },
+  legal:  { w: 8.5,  h: 14    },
+};
 
-/* footer reflect constants */
-document.getElementById('footer-margin').textContent = `${PAGE_MARGIN_INCHES}"`;
-document.getElementById('footer-logo').textContent   = `${LOGO_WIDTH_INCHES}"`;
+/* -------- Page settings (user-adjustable) -------- */
+const settings = {
+  pageSize:    'letter',
+  orientation: 'portrait',
+  margin:      0.5,
+};
 
 /* -------- In-memory state (no storage) -------- */
 const state = {
@@ -1013,6 +1070,19 @@ els.clearAll.addEventListener('click', () => {
   render();
 });
 
+/* -------- Page setup wiring -------- */
+$('#page-size').addEventListener('change', (e) => { settings.pageSize = e.target.value; });
+$('#page-margin').addEventListener('change', (e) => { settings.margin = parseFloat(e.target.value); });
+document.querySelectorAll('.orient-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    settings.orientation = btn.dataset.orient;
+    document.querySelectorAll('.orient-btn').forEach(b => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+    });
+  });
+});
+
 /* -------- Logo storage -------- */
 const LOGO_STORAGE_KEY  = 'pics2pdf_logo_data';
 const LOGO_REMEMBER_KEY = 'pics2pdf_logo_remember';
@@ -1115,6 +1185,12 @@ async function generatePDF() {
   const overlay = showProgress(`Building PDF (0 / ${selected.length})…`);
 
   try {
+    const size = PAGE_SIZES[settings.pageSize];
+    let pw = size.w * POINTS_PER_INCH;
+    let ph = size.h * POINTS_PER_INCH;
+    if (settings.orientation === 'landscape') { [pw, ph] = [ph, pw]; }
+    const margin = settings.margin * POINTS_PER_INCH;
+
     const { PDFDocument } = PDFLib;
     const pdfDoc = await PDFDocument.create();
     pdfDoc.setTitle('Pics2PDF export');
@@ -1133,13 +1209,13 @@ async function generatePDF() {
       const bytes = await dataUrlToBytes(item.dataUrl);
       const img = await embedImage(pdfDoc, bytes, item.file.type);
 
-      const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+      const page = pdfDoc.addPage([pw, ph]);
 
       // available content box
-      const boxX = MARGIN;
-      const boxY = MARGIN;
-      const boxW = PAGE_W - 2 * MARGIN;
-      const boxH = PAGE_H - 2 * MARGIN;
+      const boxX = margin;
+      const boxY = margin;
+      const boxW = pw - 2 * margin;
+      const boxH = ph - 2 * margin;
 
       // scale image to fit inside the box preserving aspect
       const scale = Math.min(boxW / img.width, boxH / img.height);
@@ -1154,8 +1230,8 @@ async function generatePDF() {
       if (embeddedLogo) {
         const lw = LOGO_W;
         const lh = LOGO_W * (embeddedLogo.height / embeddedLogo.width);
-        const lx = PAGE_W - MARGIN - lw;
-        const ly = MARGIN; // sits at the bottom edge of the inside-margin area
+        const lx = pw - margin - lw;
+        const ly = margin;
         page.drawImage(embeddedLogo, { x: lx, y: ly, width: lw, height: lh });
       }
 
