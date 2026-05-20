@@ -59,7 +59,10 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    cursor: pointer;
+    transition: opacity 120ms ease;
   }
+  .brand:hover { opacity: 0.75; }
   .brand-mark {
     width: 36px;
     height: 36px;
@@ -1068,6 +1071,12 @@ els.clearAll.addEventListener('click', () => {
   if (!confirm('Remove all images? This does not delete anything from your computer.')) return;
   state.items = [];
   render();
+});
+
+/* -------- Brand logo — reload with guard -------- */
+document.querySelector('.brand').addEventListener('click', () => {
+  if (state.items.length === 0) { location.reload(); return; }
+  if (confirm('Reload the page? Your current images will be cleared.')) location.reload();
 });
 
 /* -------- Page setup wiring -------- */
