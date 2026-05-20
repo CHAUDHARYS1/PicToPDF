@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>PicToPDF — Images to PDF</title>
+<title>Pics2PDF — Images to PDF</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
   :root {
@@ -59,7 +59,10 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    cursor: pointer;
+    transition: opacity 120ms ease;
   }
+  .brand:hover { opacity: 0.75; }
   .brand-mark {
     width: 36px;
     height: 36px;
@@ -184,6 +187,14 @@
     color: var(--danger);
   }
   .btn.danger-ghost:hover { background: oklch(0.96 0.03 25); }
+  .btn.danger {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: white;
+    font-weight: 500;
+    padding: 9px 16px;
+  }
+  .btn.danger:hover { filter: brightness(1.1); background: var(--danger); }
   .btn .icon { width: 14px; height: 14px; flex: none; }
 
   /* ---------- Drop zone (empty + active) ---------- */
@@ -282,6 +293,16 @@
     gap: 4px;
   }
   .logo-control .btn { padding: 4px 8px; font-size: 12px; }
+  .logo-remember-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-faint);
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .logo-remember-label input { cursor: pointer; accent-color: var(--accent); }
 
   /* ---------- Grid ---------- */
   .grid-wrap { padding: 16px; }
@@ -501,6 +522,39 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* ---------- Confirm modal ---------- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(28, 29, 26, 0.45);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 800;
+  }
+  .modal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px 28px;
+    min-width: 300px;
+    max-width: 420px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+    animation: toast-in 150ms ease-out;
+  }
+  .modal-message {
+    margin: 0 0 20px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text);
+  }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
   /* ---------- Footer ---------- */
   footer.app {
     text-align: center;
@@ -510,6 +564,40 @@
     line-height: 1.6;
   }
   footer.app .mono { font-family: var(--mono); }
+
+  /* ---------- Page setup controls ---------- */
+  .ctrl-label {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .ctrl-select {
+    font: inherit;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    padding: 6px 8px;
+    cursor: pointer;
+  }
+  .ctrl-select:focus-visible {
+    outline: 2px solid var(--accent-ring);
+    outline-offset: 1px;
+  }
+  .orient-group {
+    display: inline-flex;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .orient-btn {
+    border: none;
+    border-radius: 0;
+    padding: 6px 10px;
+  }
+  .orient-btn + .orient-btn { border-left: 1px solid var(--border-strong); }
+  .orient-btn.active { background: var(--accent-soft); color: var(--accent); }
 
   /* hide native file inputs */
   .visually-hidden {
@@ -543,7 +631,7 @@
         <!-- page fold -->
         <path d="M28 4 L36 12 L36 4 Z" fill="#2563EB" opacity="0.25"/>
       </svg>
-      <div class="brand-text">Pic<span>To</span>PDF</div>
+      <div class="brand-text">Pics<span>2</span>PDF</div>
     </div>
     <div class="header-meta">
       <span class="privacy-pill" title="Files never leave your device">
@@ -602,6 +690,31 @@
         <button class="btn subtle" id="deselect-all">Deselect all</button>
       </div>
 
+      <div class="group">
+        <label class="ctrl-label" for="page-size">Size</label>
+        <select class="ctrl-select" id="page-size">
+          <option value="letter">US Letter</option>
+          <option value="a4">A4</option>
+          <option value="legal">Legal</option>
+        </select>
+        <div class="orient-group">
+          <button class="btn orient-btn active" id="orient-portrait" data-orient="portrait" title="Portrait" aria-pressed="true">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/></svg>
+          </button>
+          <button class="btn orient-btn" id="orient-landscape" data-orient="landscape" title="Landscape" aria-pressed="false">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/></svg>
+          </button>
+        </div>
+        <span class="sep"></span>
+        <label class="ctrl-label" for="page-margin">Margin</label>
+        <select class="ctrl-select" id="page-margin">
+          <option value="0">None</option>
+          <option value="0.25">Small</option>
+          <option value="0.5" selected>Medium</option>
+          <option value="1">Large</option>
+        </select>
+      </div>
+
       <div class="spacer"></div>
 
       <div class="group">
@@ -613,6 +726,10 @@
           <div class="label">
             <div><strong id="logo-state">No logo</strong></div>
             <div style="font-size:11.5px;">Optional, bottom-right of each page</div>
+            <label class="logo-remember-label">
+              <input type="checkbox" id="logo-remember" />
+              Remember for next session
+            </label>
           </div>
           <div class="actions">
             <button class="btn" id="logo-pick">Upload</button>
@@ -647,10 +764,7 @@
 </main>
 
 <footer class="app">
-  PicToPDF — local-only image to PDF conversion.
-  Page size: <span class="mono">US Letter, portrait</span> ·
-  Margin: <span class="mono" id="footer-margin">0.5"</span> ·
-  Logo width: <span class="mono" id="footer-logo">1.0"</span>
+  Built and managed by Shital's Design and Consultation
 </footer>
 
 <!-- Hidden file inputs -->
@@ -660,29 +774,41 @@
 <!-- Toast region -->
 <div class="toast-region" id="toasts" aria-live="polite" aria-atomic="false"></div>
 
+<!-- Custom confirm modal -->
+<div class="modal-overlay" id="modal-overlay" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <p class="modal-message" id="modal-message"></p>
+    <div class="modal-actions">
+      <button class="btn" id="modal-cancel">Cancel</button>
+      <button class="btn" id="modal-confirm">OK</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* =============================================================
-   PicToPDF — client-side images to PDF
-   Nothing is uploaded. Nothing is persisted.
+   Pics2PDF — client-side images to PDF
+   Nothing is uploaded. Nothing is persisted (except optional logo).
    ============================================================= */
 
-/* -------- Tunable constants -------- */
-const PAGE_MARGIN_INCHES = 0.5;     // uniform white-space margin around every page
-const LOGO_WIDTH_INCHES  = 1.0;     // fixed display width of the logo (preserves aspect)
-const PAGE_WIDTH_INCHES  = 8.5;     // US Letter portrait
-const PAGE_HEIGHT_INCHES = 11;
-const POINTS_PER_INCH    = 72;      // PDF points
-const MAX_IMAGES_HINT    = 25;      // soft expectation
+/* -------- Constants -------- */
+const POINTS_PER_INCH   = 72;
+const LOGO_WIDTH_INCHES = 1.0;
+const LOGO_W            = LOGO_WIDTH_INCHES * POINTS_PER_INCH;
+const MAX_IMAGES_HINT   = 25;
 
-/* -------- Derived -------- */
-const PAGE_W = PAGE_WIDTH_INCHES  * POINTS_PER_INCH;   // 612
-const PAGE_H = PAGE_HEIGHT_INCHES * POINTS_PER_INCH;   // 792
-const MARGIN = PAGE_MARGIN_INCHES * POINTS_PER_INCH;
-const LOGO_W = LOGO_WIDTH_INCHES  * POINTS_PER_INCH;
+const PAGE_SIZES = {
+  letter: { w: 8.5,  h: 11    },
+  a4:     { w: 8.27, h: 11.69 },
+  legal:  { w: 8.5,  h: 14    },
+};
 
-/* footer reflect constants */
-document.getElementById('footer-margin').textContent = `${PAGE_MARGIN_INCHES}"`;
-document.getElementById('footer-logo').textContent   = `${LOGO_WIDTH_INCHES}"`;
+/* -------- Page settings (user-adjustable) -------- */
+const settings = {
+  pageSize:    'letter',
+  orientation: 'portrait',
+  margin:      0.5,
+};
 
 /* -------- In-memory state (no storage) -------- */
 const state = {
@@ -717,8 +843,44 @@ const els = {
   logoRemove:   $('#logo-remove'),
   logoInput:    $('#logo-input'),
   logoState:    $('#logo-state'),
+  logoRemember: $('#logo-remember'),
   toasts:       $('#toasts'),
 };
+
+/* -------- Custom confirm modal -------- */
+const modalOverlay = document.getElementById('modal-overlay');
+const modalMessage = document.getElementById('modal-message');
+const modalConfirm = document.getElementById('modal-confirm');
+const modalCancel  = document.getElementById('modal-cancel');
+
+function showConfirm(message, { confirmLabel = 'OK', cancelLabel = 'Cancel', danger = false } = {}) {
+  return new Promise(resolve => {
+    modalMessage.textContent = message;
+    modalConfirm.textContent = confirmLabel;
+    modalCancel.textContent  = cancelLabel;
+    modalConfirm.className   = `btn ${danger ? 'danger' : 'primary'}`;
+    modalOverlay.hidden = false;
+    modalConfirm.focus();
+
+    function finish(result) {
+      modalOverlay.hidden = true;
+      modalConfirm.removeEventListener('click', onOk);
+      modalCancel.removeEventListener('click', onCancel);
+      modalOverlay.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    }
+    const onOk       = () => finish(true);
+    const onCancel   = () => finish(false);
+    const onBackdrop = (e) => { if (e.target === modalOverlay) finish(false); };
+    const onKey      = (e) => { if (e.key === 'Escape') finish(false); };
+
+    modalConfirm.addEventListener('click', onOk);
+    modalCancel.addEventListener('click', onCancel);
+    modalOverlay.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey);
+  });
+}
 
 /* -------- Toasts -------- */
 function toast(message, kind = '', ttl = 3200) {
@@ -991,12 +1153,80 @@ els.deselectAll.addEventListener('click', () => {
   state.items.forEach(i => i.checked = false);
   render();
 });
-els.clearAll.addEventListener('click', () => {
+els.clearAll.addEventListener('click', async () => {
   if (!state.items.length) return;
-  if (!confirm('Remove all images? This does not delete anything from your computer.')) return;
+  const ok = await showConfirm(
+    'Remove all images? This does not delete anything from your computer.',
+    { confirmLabel: 'Remove all', danger: true }
+  );
+  if (!ok) return;
   state.items = [];
   render();
 });
+
+/* -------- Brand logo — reload with guard -------- */
+document.querySelector('.brand').addEventListener('click', async () => {
+  if (state.items.length === 0) { location.reload(); return; }
+  const ok = await showConfirm(
+    'Reload the page? Your current images will be cleared.',
+    { confirmLabel: 'Reload', danger: true }
+  );
+  if (ok) location.reload();
+});
+
+/* -------- Page setup wiring -------- */
+$('#page-size').addEventListener('change', (e) => { settings.pageSize = e.target.value; });
+$('#page-margin').addEventListener('change', (e) => { settings.margin = parseFloat(e.target.value); });
+document.querySelectorAll('.orient-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    settings.orientation = btn.dataset.orient;
+    document.querySelectorAll('.orient-btn').forEach(b => {
+      b.classList.toggle('active', b === btn);
+      b.setAttribute('aria-pressed', b === btn ? 'true' : 'false');
+    });
+  });
+});
+
+/* -------- Logo storage -------- */
+const LOGO_STORAGE_KEY  = 'pics2pdf_logo_data';
+const LOGO_REMEMBER_KEY = 'pics2pdf_logo_remember';
+
+function saveLogoToStorage() {
+  if (!state.logo) return;
+  try {
+    localStorage.setItem(LOGO_STORAGE_KEY, JSON.stringify({
+      name: state.logo.name,
+      dataUrl: state.logo.dataUrl,
+      type: state.logo.type,
+    }));
+    localStorage.setItem(LOGO_REMEMBER_KEY, 'true');
+  } catch (e) {
+    toast('Logo is too large to save in browser storage.', 'error');
+    els.logoRemember.checked = false;
+  }
+}
+
+function clearLogoFromStorage() {
+  localStorage.removeItem(LOGO_STORAGE_KEY);
+  localStorage.removeItem(LOGO_REMEMBER_KEY);
+}
+
+/* Restore remembered logo on page load */
+(function restoreLogoFromStorage() {
+  const remembered = localStorage.getItem(LOGO_REMEMBER_KEY) === 'true';
+  els.logoRemember.checked = remembered;
+  if (!remembered) return;
+  try {
+    const stored = localStorage.getItem(LOGO_STORAGE_KEY);
+    if (stored) {
+      const { name, dataUrl, type } = JSON.parse(stored);
+      state.logo = { file: null, name, dataUrl, type };
+      renderLogo();
+    }
+  } catch (e) {
+    localStorage.removeItem(LOGO_STORAGE_KEY);
+  }
+})();
 
 /* -------- Logo wiring -------- */
 els.logoPick.addEventListener('click', () => els.logoInput.click());
@@ -1010,8 +1240,9 @@ els.logoInput.addEventListener('change', async (e) => {
   }
   try {
     const dataUrl = await readAsDataURL(f);
-    state.logo = { file: f, name: f.name, dataUrl };
+    state.logo = { file: f, name: f.name, dataUrl, type: f.type };
     renderLogo();
+    if (els.logoRemember.checked) saveLogoToStorage();
   } catch (err) {
     toast('Could not read logo file.', 'error');
   }
@@ -1019,6 +1250,15 @@ els.logoInput.addEventListener('change', async (e) => {
 els.logoRemove.addEventListener('click', () => {
   state.logo = null;
   renderLogo();
+  clearLogoFromStorage();
+  els.logoRemember.checked = false;
+});
+els.logoRemember.addEventListener('change', () => {
+  if (els.logoRemember.checked) {
+    if (state.logo) saveLogoToStorage();
+  } else {
+    clearLogoFromStorage();
+  }
 });
 function renderLogo() {
   if (state.logo) {
@@ -1049,17 +1289,23 @@ async function generatePDF() {
   const overlay = showProgress(`Building PDF (0 / ${selected.length})…`);
 
   try {
+    const size = PAGE_SIZES[settings.pageSize];
+    let pw = size.w * POINTS_PER_INCH;
+    let ph = size.h * POINTS_PER_INCH;
+    if (settings.orientation === 'landscape') { [pw, ph] = [ph, pw]; }
+    const margin = settings.margin * POINTS_PER_INCH;
+
     const { PDFDocument } = PDFLib;
     const pdfDoc = await PDFDocument.create();
-    pdfDoc.setTitle('PicToPDF export');
-    pdfDoc.setCreator('PicToPDF');
-    pdfDoc.setProducer('PicToPDF');
+    pdfDoc.setTitle('Pics2PDF export');
+    pdfDoc.setCreator('Pics2PDF');
+    pdfDoc.setProducer('Pics2PDF');
 
     // Pre-embed logo (once)
     let embeddedLogo = null;
     if (state.logo) {
       const bytes = await dataUrlToBytes(state.logo.dataUrl);
-      embeddedLogo = await embedImage(pdfDoc, bytes, state.logo.file.type);
+      embeddedLogo = await embedImage(pdfDoc, bytes, state.logo.type);
     }
 
     for (let i = 0; i < selected.length; i++) {
@@ -1067,13 +1313,13 @@ async function generatePDF() {
       const bytes = await dataUrlToBytes(item.dataUrl);
       const img = await embedImage(pdfDoc, bytes, item.file.type);
 
-      const page = pdfDoc.addPage([PAGE_W, PAGE_H]);
+      const page = pdfDoc.addPage([pw, ph]);
 
       // available content box
-      const boxX = MARGIN;
-      const boxY = MARGIN;
-      const boxW = PAGE_W - 2 * MARGIN;
-      const boxH = PAGE_H - 2 * MARGIN;
+      const boxX = margin;
+      const boxY = margin;
+      const boxW = pw - 2 * margin;
+      const boxH = ph - 2 * margin;
 
       // scale image to fit inside the box preserving aspect
       const scale = Math.min(boxW / img.width, boxH / img.height);
@@ -1088,8 +1334,8 @@ async function generatePDF() {
       if (embeddedLogo) {
         const lw = LOGO_W;
         const lh = LOGO_W * (embeddedLogo.height / embeddedLogo.width);
-        const lx = PAGE_W - MARGIN - lw;
-        const ly = MARGIN; // sits at the bottom edge of the inside-margin area
+        const lx = pw - margin - lw;
+        const ly = margin;
         page.drawImage(embeddedLogo, { x: lx, y: ly, width: lw, height: lh });
       }
 
@@ -1138,7 +1384,7 @@ function triggerDownload(bytes, filename) {
 function suggestedFilename() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
-  return `PicToPDF-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.pdf`;
+  return `Pics2PDF-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.pdf`;
 }
 
 /* -------- Progress overlay -------- */
