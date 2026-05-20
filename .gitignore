@@ -1,0 +1,16 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Netlify
+.netlify/
+
+# Claude Code session data
+.claude/
+
+# Original filename (index.html is the deployment target)
+PicToPDF.html
