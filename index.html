@@ -187,6 +187,14 @@
     color: var(--danger);
   }
   .btn.danger-ghost:hover { background: oklch(0.96 0.03 25); }
+  .btn.danger {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: white;
+    font-weight: 500;
+    padding: 9px 16px;
+  }
+  .btn.danger:hover { filter: brightness(1.1); background: var(--danger); }
   .btn .icon { width: 14px; height: 14px; flex: none; }
 
   /* ---------- Drop zone (empty + active) ---------- */
@@ -514,6 +522,39 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* ---------- Confirm modal ---------- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(28, 29, 26, 0.45);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 800;
+  }
+  .modal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px 28px;
+    min-width: 300px;
+    max-width: 420px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+    animation: toast-in 150ms ease-out;
+  }
+  .modal-message {
+    margin: 0 0 20px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text);
+  }
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
   /* ---------- Footer ---------- */
   footer.app {
     text-align: center;
@@ -733,6 +774,17 @@
 <!-- Toast region -->
 <div class="toast-region" id="toasts" aria-live="polite" aria-atomic="false"></div>
 
+<!-- Custom confirm modal -->
+<div class="modal-overlay" id="modal-overlay" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <p class="modal-message" id="modal-message"></p>
+    <div class="modal-actions">
+      <button class="btn" id="modal-cancel">Cancel</button>
+      <button class="btn" id="modal-confirm">OK</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* =============================================================
    Pics2PDF — client-side images to PDF
@@ -794,6 +846,41 @@ const els = {
   logoRemember: $('#logo-remember'),
   toasts:       $('#toasts'),
 };
+
+/* -------- Custom confirm modal -------- */
+const modalOverlay = document.getElementById('modal-overlay');
+const modalMessage = document.getElementById('modal-message');
+const modalConfirm = document.getElementById('modal-confirm');
+const modalCancel  = document.getElementById('modal-cancel');
+
+function showConfirm(message, { confirmLabel = 'OK', cancelLabel = 'Cancel', danger = false } = {}) {
+  return new Promise(resolve => {
+    modalMessage.textContent = message;
+    modalConfirm.textContent = confirmLabel;
+    modalCancel.textContent  = cancelLabel;
+    modalConfirm.className   = `btn ${danger ? 'danger' : 'primary'}`;
+    modalOverlay.hidden = false;
+    modalConfirm.focus();
+
+    function finish(result) {
+      modalOverlay.hidden = true;
+      modalConfirm.removeEventListener('click', onOk);
+      modalCancel.removeEventListener('click', onCancel);
+      modalOverlay.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    }
+    const onOk       = () => finish(true);
+    const onCancel   = () => finish(false);
+    const onBackdrop = (e) => { if (e.target === modalOverlay) finish(false); };
+    const onKey      = (e) => { if (e.key === 'Escape') finish(false); };
+
+    modalConfirm.addEventListener('click', onOk);
+    modalCancel.addEventListener('click', onCancel);
+    modalOverlay.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey);
+  });
+}
 
 /* -------- Toasts -------- */
 function toast(message, kind = '', ttl = 3200) {
@@ -1066,17 +1153,25 @@ els.deselectAll.addEventListener('click', () => {
   state.items.forEach(i => i.checked = false);
   render();
 });
-els.clearAll.addEventListener('click', () => {
+els.clearAll.addEventListener('click', async () => {
   if (!state.items.length) return;
-  if (!confirm('Remove all images? This does not delete anything from your computer.')) return;
+  const ok = await showConfirm(
+    'Remove all images? This does not delete anything from your computer.',
+    { confirmLabel: 'Remove all', danger: true }
+  );
+  if (!ok) return;
   state.items = [];
   render();
 });
 
 /* -------- Brand logo — reload with guard -------- */
-document.querySelector('.brand').addEventListener('click', () => {
+document.querySelector('.brand').addEventListener('click', async () => {
   if (state.items.length === 0) { location.reload(); return; }
-  if (confirm('Reload the page? Your current images will be cleared.')) location.reload();
+  const ok = await showConfirm(
+    'Reload the page? Your current images will be cleared.',
+    { confirmLabel: 'Reload', danger: true }
+  );
+  if (ok) location.reload();
 });
 
 /* -------- Page setup wiring -------- */
