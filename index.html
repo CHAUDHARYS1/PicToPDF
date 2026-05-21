@@ -1482,6 +1482,25 @@
         <span class="row-label">Filename</span>
         <input type="text" class="input" id="filename-input" placeholder="Pics2PDF-export.pdf" spellcheck="false" />
       </div>
+      <div class="row">
+        <span class="row-label">
+          Image quality
+          <span class="row-hint">Lower quality = smaller file size</span>
+        </span>
+        <select class="select" id="img-quality">
+          <option value="original" selected>Original (lossless)</option>
+          <option value="0.92">High (92%)</option>
+          <option value="0.75">Medium (75%)</option>
+          <option value="0.50">Low (50%)</option>
+        </select>
+      </div>
+      <div class="row">
+        <span class="row-label">
+          Remember quality default
+          <span class="row-hint">Saves to this browser only</span>
+        </span>
+        <input type="checkbox" class="switch" id="quality-remember" />
+      </div>
     </div>
 
   </div>
@@ -1549,9 +1568,10 @@ const PAGE_SIZES = {
   legal:  { w: 8.5,  h: 14    },
 };
 
-const DENSITY_PREF_KEY  = 'pics2pdf_density';
-const LOGO_STORAGE_KEY  = 'pics2pdf_logo_data';
-const LOGO_REMEMBER_KEY = 'pics2pdf_logo_remember';
+const DENSITY_PREF_KEY   = 'pics2pdf_density';
+const LOGO_STORAGE_KEY   = 'pics2pdf_logo_data';
+const LOGO_REMEMBER_KEY  = 'pics2pdf_logo_remember';
+const QUALITY_PREF_KEY   = 'pics2pdf_quality_pref';
 
 /* ---------- Settings (user-adjustable) ---------- */
 const settings = {
@@ -1561,6 +1581,7 @@ const settings = {
   fitMode:     'contain',
   pageNums:    false,
   logoEnabled: false,
+  quality:     'original',
 };
 
 /* ---------- In-memory state ---------- */
@@ -1625,7 +1646,9 @@ const els = {
   logoRemove:   $('#logo-remove'),
   logoRemember: $('#logo-remember'),
 
-  filename:     $('#filename-input'),
+  filename:        $('#filename-input'),
+  imgQuality:      $('#img-quality'),
+  qualityRemember: $('#quality-remember'),
 };
 
 /* ---------- Custom confirm modal ---------- */
@@ -2028,10 +2051,28 @@ document.addEventListener('keydown', (e) => {
 });
 
 /* Settings bindings */
-els.pageSize.addEventListener('change',   (e) => { settings.pageSize = e.target.value; });
-els.pageMargin.addEventListener('change', (e) => { settings.margin = parseFloat(e.target.value); });
-els.fitMode.addEventListener('change',    (e) => { settings.fitMode = e.target.value; });
-els.pageNums.addEventListener('change',   (e) => { settings.pageNums = e.target.checked; });
+els.pageSize.addEventListener('change',    (e) => { settings.pageSize = e.target.value; });
+els.pageMargin.addEventListener('change',  (e) => { settings.margin = parseFloat(e.target.value); });
+els.fitMode.addEventListener('change',     (e) => { settings.fitMode = e.target.value; });
+els.pageNums.addEventListener('change',    (e) => { settings.pageNums = e.target.checked; });
+els.imgQuality.addEventListener('change',  (e) => {
+  settings.quality = e.target.value;
+  if (els.qualityRemember.checked) localStorage.setItem(QUALITY_PREF_KEY, settings.quality);
+});
+els.qualityRemember.addEventListener('change', () => {
+  if (els.qualityRemember.checked) {
+    localStorage.setItem(QUALITY_PREF_KEY, settings.quality);
+  } else {
+    localStorage.removeItem(QUALITY_PREF_KEY);
+  }
+});
+(function restoreQualityPref() {
+  const saved = localStorage.getItem(QUALITY_PREF_KEY);
+  if (!saved) return;
+  settings.quality = saved;
+  els.imgQuality.value = saved;
+  els.qualityRemember.checked = true;
+})();
 els.orientSeg.querySelectorAll('button').forEach(btn => {
   btn.addEventListener('click', () => {
     settings.orientation = btn.dataset.orient;
@@ -2295,8 +2336,10 @@ async function generatePDF() {
 
       let embedDataUrl = item.dataUrl;
       let embedType = item.file ? item.file.type : 'image/jpeg';
-      if (item.rotation) {
-        embedDataUrl = await rotateDataUrl(item.dataUrl, item.rotation);
+      const needsCanvas = item.rotation || settings.quality !== 'original';
+      if (needsCanvas) {
+        const q = settings.quality === 'original' ? 0.92 : parseFloat(settings.quality);
+        embedDataUrl = await processImageForEmbed(item.dataUrl, item.rotation || 0, q);
         embedType = 'image/jpeg';
       }
       const bytes = await dataUrlToBytes(embedDataUrl);
@@ -2429,8 +2472,8 @@ function showProgress(label, total) {
   };
 }
 
-/* ---------- Image rotation via canvas ---------- */
-function rotateDataUrl(dataUrl, deg) {
+/* ---------- Image processing via canvas (rotation + compression) ---------- */
+function processImageForEmbed(dataUrl, deg, quality) {
   return new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
@@ -2439,10 +2482,14 @@ function rotateDataUrl(dataUrl, deg) {
       c.width  = swap ? img.naturalHeight : img.naturalWidth;
       c.height = swap ? img.naturalWidth  : img.naturalHeight;
       const ctx = c.getContext('2d');
-      ctx.translate(c.width / 2, c.height / 2);
-      ctx.rotate(deg * Math.PI / 180);
-      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-      resolve(c.toDataURL('image/jpeg', 0.92));
+      if (deg) {
+        ctx.translate(c.width / 2, c.height / 2);
+        ctx.rotate(deg * Math.PI / 180);
+        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+      } else {
+        ctx.drawImage(img, 0, 0);
+      }
+      resolve(c.toDataURL('image/jpeg', quality));
     };
     img.src = dataUrl;
   });
