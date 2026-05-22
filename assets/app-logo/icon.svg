@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Full-bleed background — iOS applies its own corner rounding -->
+  <rect width="512" height="512" fill="#2563EB"/>
+  <!-- Corner brackets (scaled from favicon: viewBox 56→512, stroke 2.6→24) -->
+  <path d="M174 110 L110 110 L110 174" stroke="white" stroke-width="24" fill="none" stroke-linecap="square"/>
+  <path d="M338 110 L402 110 L402 174" stroke="white" stroke-width="24" fill="none" stroke-linecap="square"/>
+  <path d="M110 338 L110 402 L174 402" stroke="white" stroke-width="24" fill="none" stroke-linecap="square"/>
+  <path d="M402 338 L402 402 L338 402" stroke="white" stroke-width="24" fill="none" stroke-linecap="square"/>
+  <!-- "2" representing "Pics TO PDF" -->
+  <text x="256" y="347" text-anchor="middle" font-family="Helvetica Neue,Helvetica,Arial,sans-serif" font-weight="700" font-size="238" fill="white">2</text>
+</svg>
