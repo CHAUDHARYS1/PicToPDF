@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Pics2PDF — Images to PDF</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'><rect x='2' y='2' width='52' height='52' rx='9' fill='%232563EB'/><path d='M19 12 L12 12 L12 19' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='square'/><path d='M37 12 L44 12 L44 19' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='square'/><path d='M12 37 L12 44 L19 44' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='square'/><path d='M44 37 L44 44 L37 44' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='square'/><text x='28' y='38' text-anchor='middle' font-family='Helvetica,Arial,sans-serif' font-weight='700' font-size='26' fill='white'>2</text></svg>" />
+<link rel="apple-touch-icon" sizes="180x180" href="assets/app-logo/apple-touch-icon-180x180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/app-logo/apple-touch-icon-167x167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/app-logo/apple-touch-icon-152x152.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Pics2PDF">
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -1731,6 +1737,54 @@ function getImageSize(dataUrl) {
   });
 }
 
+// Reads the EXIF orientation tag (1–8) from the first 64KB of a JPEG file.
+// Returns 1 (normal) for non-JPEG files or when no orientation tag is found.
+function readExifOrientation(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const view = new DataView(e.target.result);
+        if (view.getUint16(0) !== 0xFFD8) return resolve(1);
+        let offset = 2;
+        while (offset + 4 <= view.byteLength) {
+          const marker = view.getUint16(offset);
+          offset += 2;
+          if (marker === 0xFFE1) {
+            const segLen = view.getUint16(offset);
+            if (
+              segLen >= 16 &&
+              view.getUint32(offset + 2) === 0x45786966 &&
+              view.getUint16(offset + 6) === 0x0000
+            ) {
+              const tiff = offset + 8;
+              const le = view.getUint16(tiff) === 0x4949;
+              const ifdBase = tiff + view.getUint32(tiff + 4, le);
+              const count = view.getUint16(ifdBase, le);
+              for (let i = 0; i < count; i++) {
+                const entry = ifdBase + 2 + i * 12;
+                if (view.getUint16(entry, le) === 0x0112) {
+                  return resolve(view.getUint16(entry + 8, le));
+                }
+              }
+            }
+            offset += segLen;
+          } else if (marker === 0xFFDA) {
+            break;
+          } else if ((marker & 0xFF00) === 0xFF00) {
+            offset += view.getUint16(offset);
+          } else {
+            break;
+          }
+        }
+      } catch (_) {}
+      resolve(1);
+    };
+    reader.onerror = () => resolve(1);
+    reader.readAsArrayBuffer(file.slice(0, 65536));
+  });
+}
+
 async function addFiles(fileList) {
   const files = Array.from(fileList || []);
   if (!files.length) return;
@@ -1756,6 +1810,7 @@ async function addFiles(fileList) {
     try {
       const dataUrl = await readAsDataURL(f);
       const { w, h } = await getImageSize(dataUrl);
+      const exifOrientation = f.type === 'image/jpeg' ? await readExifOrientation(f) : 1;
       state.items.push({
         id: newId(),
         file: f,
@@ -1763,6 +1818,7 @@ async function addFiles(fileList) {
         dataUrl,
         checked: true,
         rotation: 0,
+        exifOrientation,
         width: w,
         height: h,
       });
@@ -2336,7 +2392,7 @@ async function generatePDF() {
 
       let embedDataUrl = item.dataUrl;
       let embedType = item.file ? item.file.type : 'image/jpeg';
-      const needsCanvas = item.rotation || settings.quality !== 'original';
+      const needsCanvas = item.rotation || settings.quality !== 'original' || (item.exifOrientation && item.exifOrientation !== 1);
       if (needsCanvas) {
         const q = settings.quality === 'original' ? 0.92 : parseFloat(settings.quality);
         embedDataUrl = await processImageForEmbed(item.dataUrl, item.rotation || 0, q);
