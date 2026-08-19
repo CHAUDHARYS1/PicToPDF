@@ -1338,6 +1338,9 @@
       <button class="icon-btn danger-ghost" id="clear-all" type="button" title="Clear all images" aria-label="Clear all images">
         <i class="ph ph-trash" aria-hidden="true"></i>
       </button>
+      <button class="icon-btn" id="rotate-all-btn" type="button" title="Rotate all 90°" aria-label="Rotate all images 90 degrees">
+        <i class="ph ph-arrow-clockwise" aria-hidden="true"></i>
+      </button>
 
       <div class="density-seg" role="group" aria-label="Thumbnail size">
         <button type="button" data-density="s" title="Small" aria-label="Small thumbnails">
@@ -1620,6 +1623,7 @@ const els = {
   selSub:       $('#sel-sub'),
   selectAllBtn: $('#select-all-btn'),
   clearAll:     $('#clear-all'),
+  rotateAllBtn: $('#rotate-all-btn'),
   makePdf:      $('#make-pdf'),
   toasts:       $('#toasts'),
   brandBtn:     $('#brand-btn'),
@@ -2054,6 +2058,11 @@ els.clearAll.addEventListener('click', async () => {
   );
   if (!ok) return;
   state.items = [];
+  render();
+});
+els.rotateAllBtn.addEventListener('click', () => {
+  if (!state.items.length) return;
+  state.items.forEach(i => { i.rotation = ((i.rotation || 0) + 90) % 360; });
   render();
 });
 
