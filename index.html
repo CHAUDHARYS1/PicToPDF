@@ -475,6 +475,22 @@
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
   }
+  .thumb-markup-badge {
+    position: absolute;
+    /* Bottom-right: top-left is the index number, top-right is where the
+       hover-revealed action buttons (rotate/annotate/remove) appear. */
+    bottom: 8px; right: 8px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-xs);
+    pointer-events: none;
+  }
+  .thumb-markup-badge i { font-size: 10px; }
   .thumb-actions {
     display: flex;
     gap: 4px;
@@ -985,6 +1001,167 @@
     border-color: var(--accent);
   }
   .preview-strip-thumb:hover { transform: translateY(-1px); }
+
+  /* ───────── Annotate (markup) editor ───────── */
+  .annotate-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(28, 29, 26, 0.6);
+    z-index: 220;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+    padding: 24px;
+    overscroll-behavior: contain;
+  }
+  .annotate-overlay.open { display: flex; }
+  .annotate-card {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-overlay);
+    width: min(1000px, 100%);
+    max-height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    animation: card-in 220ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  .annotate-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--border);
+  }
+  .annotate-head h3 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .annotate-head .sub { font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }
+  .annotate-head-actions { display: inline-flex; align-items: center; gap: 8px; }
+  .annotate-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 20px;
+    overflow: auto;
+    flex: 1;
+    background: var(--surface-2);
+  }
+  .annotate-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  /* Larger touch targets here specifically: this is the primary drawing
+     surface, likely used one-handed / gloved in the field. */
+  #annotate-tool-seg button { min-width: 44px; min-height: 44px; }
+  .annotate-color-swatches { display: inline-flex; gap: 6px; }
+  .annotate-color-swatches button {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 2px solid var(--border-strong);
+    cursor: pointer;
+    padding: 0;
+  }
+  .annotate-color-swatches button.active {
+    border-color: var(--text);
+    box-shadow: 0 0 0 2px var(--accent-ring);
+  }
+  .annotate-icon-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .annotate-icon-picker button {
+    width: 34px; height: 34px;
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+  }
+  .annotate-icon-picker button svg { width: 18px; height: 18px; }
+  .annotate-icon-picker button.active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .annotate-style-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .annotate-style-picker button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    min-height: 36px;
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 12.5px;
+  }
+  .annotate-style-picker button.active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .annotate-canvas-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-3);
+    border-radius: var(--radius);
+    padding: 10px;
+    overflow: auto;
+    touch-action: none;
+  }
+  #annotate-canvas {
+    max-width: 100%;
+    height: auto;
+    touch-action: none;
+    cursor: crosshair;
+    background: #fff;
+    box-shadow: var(--shadow-sm);
+    border-radius: 2px;
+  }
+  .annotate-note-row { display: flex; flex-direction: column; gap: 4px; }
+  .annotate-note-row label { font-size: 12.5px; color: var(--text-dim); font-weight: 600; }
+  .annotate-note-row textarea {
+    resize: vertical;
+    font-family: var(--font);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    padding: 8px 10px;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--surface);
+  }
+  .annotate-hint {
+    font-size: 11.5px;
+    color: var(--text-faint);
+  }
+  .annotate-text-input {
+    position: fixed;
+    z-index: 230;
+    font: 600 14px var(--font);
+    color: var(--text);
+    background: var(--surface);
+    border: 1.5px solid var(--accent);
+    border-radius: var(--radius-xs);
+    padding: 4px 8px;
+    box-shadow: var(--shadow-md);
+    min-width: 120px;
+  }
 
   /* ───────── Toast ───────── */
   .toast-region {
@@ -1540,6 +1717,70 @@
   </div>
 </div>
 
+<!-- Annotate (markup) editor -->
+<div class="annotate-overlay" id="annotate-overlay" aria-hidden="true">
+  <div class="annotate-card" role="dialog" aria-modal="true" aria-labelledby="annotate-title">
+    <div class="annotate-head">
+      <div>
+        <h3 id="annotate-title">Markup photo</h3>
+        <div class="sub" id="annotate-sub">Labels, arrows, shapes, icons — baked into the exported photo</div>
+      </div>
+      <div class="annotate-head-actions">
+        <button class="btn danger-ghost" id="annotate-clear" type="button">Clear all</button>
+        <button class="btn primary" id="annotate-done" type="button">Done</button>
+        <button class="drawer-close" id="annotate-close" type="button" aria-label="Close editor">
+          <i class="ph-bold ph-x" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+    <div class="annotate-body">
+      <div class="annotate-toolbar" id="annotate-toolbar">
+        <div class="density-seg" role="group" aria-label="Markup tool" id="annotate-tool-seg">
+          <button type="button" data-tool="select" class="active" title="Select / move" aria-label="Select or move">
+            <i class="ph-bold ph-cursor" aria-hidden="true"></i>
+          </button>
+          <button type="button" data-tool="text" title="Text label" aria-label="Text label">
+            <i class="ph-bold ph-text-t" aria-hidden="true"></i>
+          </button>
+          <button type="button" data-tool="arrow" title="Arrow" aria-label="Arrow">
+            <i class="ph-bold ph-arrow-up-right" aria-hidden="true"></i>
+          </button>
+          <button type="button" data-tool="rect" title="Box" aria-label="Box">
+            <i class="ph-bold ph-square" aria-hidden="true"></i>
+          </button>
+          <button type="button" data-tool="ellipse" title="Circle" aria-label="Circle">
+            <i class="ph-bold ph-circle" aria-hidden="true"></i>
+          </button>
+          <button type="button" data-tool="freehand" title="Freehand draw" aria-label="Freehand draw">
+            <i class="ph-bold ph-pencil-simple" aria-hidden="true"></i>
+          </button>
+          <button type="button" data-tool="icon" title="Icon" aria-label="Icon">
+            <i class="ph-bold ph-shapes" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="annotate-color-swatches" id="annotate-colors"></div>
+        <button class="icon-btn" id="annotate-undo" type="button" title="Undo last">
+          <i class="ph-bold ph-arrow-counter-clockwise" aria-hidden="true"></i>
+        </button>
+        <button class="icon-btn danger-ghost" id="annotate-delete-selected" type="button" title="Delete selected" disabled>
+          <i class="ph-bold ph-trash" aria-hidden="true"></i>
+        </button>
+        <span class="annotate-hint" id="annotate-hint">Select a tool, then click or drag on the photo</span>
+      </div>
+      <div class="annotate-style-picker" id="annotate-style-picker" hidden></div>
+      <div class="annotate-icon-picker" id="annotate-icon-picker" hidden></div>
+      <div class="annotate-canvas-wrap" id="annotate-canvas-wrap">
+        <canvas id="annotate-canvas"></canvas>
+      </div>
+      <div class="annotate-note-row">
+        <label for="annotate-note-input">Note (fixed caption, bottom-left of photo)</label>
+        <textarea id="annotate-note-input" rows="2" maxlength="240"
+                  placeholder="e.g. Living room — Router (RT-01), Switch (SW-02)"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Hidden file inputs -->
 <input type="file" id="file-input" class="visually-hidden" accept="image/jpeg,image/png" multiple />
 <input type="file" id="logo-input" class="visually-hidden" accept="image/jpeg,image/png" />
@@ -1577,6 +1818,38 @@ const PAGE_SIZES = {
   legal:  { w: 8.5,  h: 14    },
 };
 
+// Curated markup icon set (Phosphor "bold" weight — filled compound paths,
+// fill="currentColor", no stroke — unlike the stroke-based webfont icons
+// used elsewhere in the toolbar chrome). Drawn on canvas via Path2D fill.
+const ICONS = {
+  wifi:     { label: 'Wi-Fi',       d: 'M144,204a16,16,0,1,1-16-16A16,16,0,0,1,144,204ZM239.61,83.91a176,176,0,0,0-223.22,0,12,12,0,1,0,15.23,18.55,152,152,0,0,1,192.76,0,12,12,0,1,0,15.23-18.55Zm-32.16,35.73a128,128,0,0,0-158.9,0,12,12,0,0,0,14.9,18.81,104,104,0,0,1,129.1,0,12,12,0,0,0,14.9-18.81ZM175.07,155.3a80.05,80.05,0,0,0-94.14,0,12,12,0,0,0,14.14,19.4,56,56,0,0,1,65.86,0,12,12,0,1,0,14.14-19.4Z' },
+  cable:    { label: 'Cable/Plug',  d: 'M137,168l11.52-11.51a12,12,0,0,0-17-17L120,151l-15-15,11.52-11.51a12,12,0,0,0-17-17L88,119,72.49,103.51a12,12,0,0,0-17,17L59,124,38.54,144.49a36,36,0,0,0,0,50.91l2.55,2.54L15.51,223.51a12,12,0,0,0,17,17l25.57-25.58,2.54,2.55a36.06,36.06,0,0,0,50.91,0L132,197l3.51,3.52a12,12,0,0,0,17-17ZM94.54,200.49a12,12,0,0,1-17,0L55.51,178.43a12,12,0,0,1,0-17L76,141l39,39Zm146-185a12,12,0,0,0-17,0L197.94,41.09l-2.54-2.55a36.05,36.05,0,0,0-50.91,0L124,59l-3.51-3.52a12,12,0,0,0-17,17l80,80a12,12,0,0,0,17-17L197,132l20.49-20.49a36,36,0,0,0,0-50.91l-2.55-2.54,25.58-25.57A12,12,0,0,0,240.49,15.51Zm-40,79L180,115,141,76l20.49-20.49a12,12,0,0,1,17,0l22.06,22.06a12,12,0,0,1,0,17Z' },
+  desktop:  { label: 'Monitor',     d: 'M208,36H48A28,28,0,0,0,20,64V172a28,28,0,0,0,28,28h68v12H96a12,12,0,0,0,0,24h64a12,12,0,0,0,0-24H140V200h68a28,28,0,0,0,28-28V64A28,28,0,0,0,208,36ZM48,60H208a4,4,0,0,1,4,4v72H44V64A4,4,0,0,1,48,60ZM208,176H48a4,4,0,0,1-4-4V160H212v12A4,4,0,0,1,208,176Z' },
+  laptop:   { label: 'Laptop',      d: 'M232,156h-4V72a28,28,0,0,0-28-28H56A28,28,0,0,0,28,72v84H24a12,12,0,0,0-12,12v24a28,28,0,0,0,28,28H216a28,28,0,0,0,28-28V168A12,12,0,0,0,232,156ZM52,72a4,4,0,0,1,4-4H200a4,4,0,0,1,4,4v84H52ZM220,192a4,4,0,0,1-4,4H40a4,4,0,0,1-4-4V180H220ZM156,96a12,12,0,0,1-12,12H112a12,12,0,0,1,0-24h32A12,12,0,0,1,156,96Z' },
+  camera:   { label: 'Camera',      d: 'M208,52H182.42L170,33.34A12,12,0,0,0,160,28H96a12,12,0,0,0-10,5.34L73.57,52H48A28,28,0,0,0,20,80V192a28,28,0,0,0,28,28H208a28,28,0,0,0,28-28V80A28,28,0,0,0,208,52Zm4,140a4,4,0,0,1-4,4H48a4,4,0,0,1-4-4V80a4,4,0,0,1,4-4H80a12,12,0,0,0,10-5.34L102.42,52h51.15L166,70.66A12,12,0,0,0,176,76h32a4,4,0,0,1,4,4ZM128,84a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,84Zm0,72a24,24,0,1,1,24-24A24,24,0,0,1,128,156Z' },
+  printer:  { label: 'Printer',     d: 'M214.67,68H204V40a12,12,0,0,0-12-12H64A12,12,0,0,0,52,40V68H41.33C25.16,68,12,80.56,12,96v80a12,12,0,0,0,12,12H52v28a12,12,0,0,0,12,12H192a12,12,0,0,0,12-12V188h28a12,12,0,0,0,12-12V96C244,80.56,230.84,68,214.67,68ZM76,52H180V68H76ZM180,204H76V172H180Zm40-40H204v-4a12,12,0,0,0-12-12H64a12,12,0,0,0-12,12v4H36V96c0-2.17,2.44-4,5.33-4H214.67c2.89,0,5.33,1.83,5.33,4Zm-16-44a16,16,0,1,1-16-16A16,16,0,0,1,204,120Z' },
+  server:   { label: 'Server/NAS',  d: 'M208,36H48A20,20,0,0,0,28,56V200a20,20,0,0,0,20,20H208a20,20,0,0,0,20-20V56A20,20,0,0,0,208,36Zm-4,24v56H52V60ZM52,196V140H204v56ZM160,88a16,16,0,1,1,16,16A16,16,0,0,1,160,88Zm32,80a16,16,0,1,1-16-16A16,16,0,0,1,192,168Z' },
+  question: { label: 'Question',    d: 'M144,180a16,16,0,1,1-16-16A16,16,0,0,1,144,180Zm92-52A108,108,0,1,1,128,20,108.12,108.12,0,0,1,236,128Zm-24,0a84,84,0,1,0-84,84A84.09,84.09,0,0,0,212,128ZM128,64c-24.26,0-44,17.94-44,40v4a12,12,0,0,0,24,0v-4c0-8.82,9-16,20-16s20,7.18,20,16-9,16-20,16a12,12,0,0,0-12,12v8a12,12,0,0,0,23.73,2.56C158.31,137.88,172,122.37,172,104,172,81.94,152.26,64,128,64Z' },
+  warning:  { label: 'Warning',     d: 'M128,20A108,108,0,1,0,236,128,108.12,108.12,0,0,0,128,20Zm0,192a84,84,0,1,1,84-84A84.09,84.09,0,0,1,128,212Zm-12-80V80a12,12,0,0,1,24,0v52a12,12,0,0,1-24,0Zm28,40a16,16,0,1,1-16-16A16,16,0,0,1,144,172Z' },
+  check:    { label: 'Check',       d: 'M176.49,95.51a12,12,0,0,1,0,17l-56,56a12,12,0,0,1-17,0l-24-24a12,12,0,1,1,17-17L112,143l47.51-47.52A12,12,0,0,1,176.49,95.51ZM236,128A108,108,0,1,1,128,20,108.12,108.12,0,0,1,236,128Zm-24,0a84,84,0,1,0-84,84A84.09,84.09,0,0,0,212,128Z' },
+  close:    { label: 'Not this',    d: 'M168.49,104.49,145,128l23.52,23.51a12,12,0,0,1-17,17L128,145l-23.51,23.52a12,12,0,0,1-17-17L111,128,87.51,104.49a12,12,0,0,1,17-17L128,111l23.51-23.52a12,12,0,0,1,17,17ZM236,128A108,108,0,1,1,128,20,108.12,108.12,0,0,1,236,128Zm-24,0a84,84,0,1,0-84,84A84.09,84.09,0,0,0,212,128Z' },
+};
+
+const ANNOTATION_COLORS = ['#e02020', '#e0791f', '#e0c020', '#1a9c50', '#2563eb', '#1c1d1a'];
+
+// Mirrors the --font CSS custom property so canvas text matches the rest of the app.
+const FONT_STACK = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+// Mirrors --mono, used by the "terminal" text label style.
+const MONO_FONT_STACK = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
+
+// Text label rendering styles, picked from the toolbar when the text tool is active.
+const TEXT_LABEL_STYLES = [
+  { id: 'tag',      label: 'Tag',      icon: 'ph-bold ph-tag' },
+  { id: 'terminal', label: 'Terminal', icon: 'ph-bold ph-terminal-window' },
+  { id: 'asset',    label: 'Asset tag', icon: 'ph-bold ph-identification-badge' },
+  { id: 'plain',    label: 'Plain',    icon: 'ph-bold ph-text-t' },
+];
+
 const DENSITY_PREF_KEY   = 'pics2pdf_density';
 const LOGO_STORAGE_KEY   = 'pics2pdf_logo_data';
 const LOGO_REMEMBER_KEY  = 'pics2pdf_logo_remember';
@@ -1595,7 +1868,7 @@ const settings = {
 
 /* ---------- In-memory state ---------- */
 const state = {
-  items: [],     // { id, file, name, dataUrl, checked, rotation, width, height }
+  items: [],     // { id, file, name, dataUrl, checked, rotation, width, height, annotations, note, previewDataUrl }
   logo:  null,   // { file, name, dataUrl, type, width, height } | null
   dragId: null,
   previewIndex: 0,
@@ -1640,6 +1913,21 @@ const els = {
   previewWrap:  $('#preview-page-wrap'),
   previewStrip: $('#preview-strip'),
   previewSub:   $('#preview-sub'),
+
+  annotateOver:           $('#annotate-overlay'),
+  annotateClose:          $('#annotate-close'),
+  annotateDone:           $('#annotate-done'),
+  annotateClear:          $('#annotate-clear'),
+  annotateCanvas:         $('#annotate-canvas'),
+  annotateCanvasWrap:     $('#annotate-canvas-wrap'),
+  annotateToolSeg:        $('#annotate-tool-seg'),
+  annotateColors:         $('#annotate-colors'),
+  annotateIconPicker:     $('#annotate-icon-picker'),
+  annotateStylePicker:    $('#annotate-style-picker'),
+  annotateNoteInput:      $('#annotate-note-input'),
+  annotateUndo:           $('#annotate-undo'),
+  annotateDeleteSelected: $('#annotate-delete-selected'),
+  annotateHint:           $('#annotate-hint'),
 
   pageSize:     $('#page-size'),
   pageMargin:   $('#page-margin'),
@@ -1825,6 +2113,8 @@ async function addFiles(fileList) {
         exifOrientation,
         width: w,
         height: h,
+        annotations: [],
+        note: '',
       });
     } catch (e) {
       toast(`Could not read "${f.name}".`, 'error');
@@ -1868,12 +2158,23 @@ function render() {
     card.dataset.id = item.id;
     card.draggable = true;
 
+    const hasMarkup = (item.annotations && item.annotations.length > 0) || !!item.note;
+    // Once a preview is baked (see updateThumbnailPreview), it already has
+    // rotation applied, so the CSS rotate transform is only needed for the
+    // plain, un-annotated dataUrl fallback.
+    const thumbSrc = item.previewDataUrl || item.dataUrl;
+    const thumbStyle = item.previewDataUrl ? '' : `transform:rotate(${item.rotation || 0}deg)`;
+
     card.innerHTML = `
       <div class="thumb-img-wrap">
-        <img class="thumb-img" alt="" src="${escapeAttr(item.dataUrl)}" style="transform:rotate(${item.rotation || 0}deg)" />
+        <img class="thumb-img" alt="" src="${escapeAttr(thumbSrc)}" style="${thumbStyle}" />
+        ${hasMarkup ? `<span class="thumb-markup-badge" title="Has markup"><i class="ph-bold ph-pencil-simple" aria-hidden="true"></i></span>` : ''}
         <div class="thumb-overlay">
           <span class="thumb-index">${idx + 1}</span>
           <div class="thumb-actions">
+            <button class="thumb-iconbtn" type="button" data-act="annotate" title="Markup" aria-label="Markup ${escapeAttr(item.name)}">
+              <i class="ph-bold ph-pencil-simple" aria-hidden="true"></i>
+            </button>
             <button class="thumb-iconbtn" type="button" data-act="rotate" title="Rotate 90°" aria-label="Rotate ${escapeAttr(item.name)}">
               <i class="ph-bold ph-arrow-clockwise" aria-hidden="true"></i>
             </button>
@@ -1907,15 +2208,19 @@ function render() {
 
     // action buttons
     card.querySelectorAll('[data-act]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const act = btn.dataset.act;
         if (act === 'rotate') {
           item.rotation = ((item.rotation || 0) + 90) % 360;
+          rotateAnnotationsCW(item);
+          await updateThumbnailPreview(item);
           render();
         } else if (act === 'remove') {
           state.items = state.items.filter(i => i.id !== item.id);
           render();
+        } else if (act === 'annotate') {
+          openAnnotate(item);
         }
       });
     });
@@ -2060,11 +2365,35 @@ els.clearAll.addEventListener('click', async () => {
   state.items = [];
   render();
 });
-els.rotateAllBtn.addEventListener('click', () => {
+els.rotateAllBtn.addEventListener('click', async () => {
   if (!state.items.length) return;
-  state.items.forEach(i => { i.rotation = ((i.rotation || 0) + 90) % 360; });
+  state.items.forEach(i => {
+    i.rotation = ((i.rotation || 0) + 90) % 360;
+    rotateAnnotationsCW(i);
+  });
+  await Promise.all(state.items.map(updateThumbnailPreview));
   render();
 });
+
+// Keeps markup attached to what it's pointing at when the photo rotates.
+// Coordinates are fractions of the *displayed* (post-rotation) image, so a
+// 90° CW step remaps (fx,fy) -> (1-fy, fx); applied twice gives the correct
+// 180° mirror (1-fx,1-fy), three times gives 270° (fy,1-fx).
+function rotateAnnotationsCW(item) {
+  const rot = (fx, fy) => [1 - fy, fx];
+  (item.annotations || []).forEach(a => {
+    if (a.points) {
+      a.points = a.points.map(p => { const [x, y] = rot(p.x, p.y); return { x, y }; });
+    } else if (a.x1 !== undefined) {
+      const [x1, y1] = rot(a.x1, a.y1);
+      const [x2, y2] = rot(a.x2, a.y2);
+      Object.assign(a, { x1, y1, x2, y2 });
+    } else if (a.x !== undefined) {
+      const [x, y] = rot(a.x, a.y);
+      a.x = x; a.y = y;
+    }
+  });
+}
 
 /* Brand reload guard */
 els.brandBtn.addEventListener('click', async () => {
@@ -2276,6 +2605,16 @@ document.addEventListener('keydown', (e) => {
 
 function getSelected() { return state.items.filter(i => i.checked); }
 
+// A baked previewDataUrl (see updateThumbnailPreview) already has rotation
+// and markup applied, so no CSS rotate transform is needed on top of it —
+// only the plain dataUrl fallback still needs one.
+function previewImgAttrs(it) {
+  return {
+    src: it.previewDataUrl || it.dataUrl,
+    transform: it.previewDataUrl ? '' : `transform: rotate(${it.rotation || 0}deg);`,
+  };
+}
+
 function renderPreview() {
   const selected = getSelected();
   if (!selected.length) { closePreview(); return; }
@@ -2332,11 +2671,15 @@ function renderPreview() {
     pageNumHtml = `<div class="preview-page-num">${label}</div>`;
   }
 
+  // A baked previewDataUrl already has rotation + markup applied, so it
+  // needs no further CSS rotation — only the plain, un-annotated dataUrl does.
+  const mainImg = previewImgAttrs(item);
+
   els.previewWrap.innerHTML = `
     <div class="preview-page" style="width:${pageWpx}px; height:${pageHpx}px; ${clip ? 'overflow:hidden;' : ''}">
-      <img class="preview-page-img" src="${escapeAttr(item.dataUrl)}"
+      <img class="preview-page-img" src="${escapeAttr(mainImg.src)}"
            style="left:${drawX}px; top:${drawY}px; width:${drawW}px; height:${drawH}px;
-                  transform: rotate(${item.rotation || 0}deg);
+                  ${mainImg.transform}
                   transform-origin: center center;" />
       ${logoHtml}
       ${pageNumHtml}
@@ -2349,7 +2692,8 @@ function renderPreview() {
     const t = document.createElement('button');
     t.type = 'button';
     t.className = 'preview-strip-thumb' + (idx === state.previewIndex ? ' active' : '');
-    t.innerHTML = `<img src="${escapeAttr(it.dataUrl)}" style="transform: rotate(${it.rotation || 0}deg);" />`;
+    const stripImg = previewImgAttrs(it);
+    t.innerHTML = `<img src="${escapeAttr(stripImg.src)}" style="${stripImg.transform}" />`;
     t.addEventListener('click', () => { state.previewIndex = idx; renderPreview(); });
     els.previewStrip.appendChild(t);
   });
@@ -2359,6 +2703,633 @@ function renderPreview() {
   const orient   = settings.orientation === 'portrait' ? 'portrait' : 'landscape';
   els.previewSub.textContent = `Page ${state.previewIndex + 1} of ${selected.length} · ${sizeName}, ${orient}`;
 }
+
+/* ---------- Annotate (markup) editor ---------- */
+let nextAnnId = 1;
+const newAnnId = () => `ann-${nextAnnId++}`;
+
+const annEditor = {
+  item: null,
+  img: null,        // cached <Image> of item.dataUrl
+  tool: 'select',
+  color: ANNOTATION_COLORS[0],
+  dispW: 0, dispH: 0,   // logical (non-DPR) displayed pixel size, post-rotation
+  selectedId: null,
+  drawing: null,        // in-progress annotation (arrow/rect/ellipse/freehand)
+  dragging: null,       // { id, startFx, startFy, orig } while moving a selected annotation
+  pendingIcon: null,
+  textStyle: TEXT_LABEL_STYLES[0].id,
+};
+
+function clamp01(n) { return Math.max(0, Math.min(1, n)); }
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+// Draws img scaled to fill canvasW×canvasH (post-rotation) — the rotation
+// convention shared by processImageForEmbed, the live editor, and thumbnail
+// preview baking. Scaling to an explicit destination size, rather than
+// assuming canvasW/H always match img's natural size 1:1, lets the same
+// function serve both a full-res canvas and a deliberately downscaled one.
+function drawRotatedImage(ctx, img, deg, canvasW, canvasH) {
+  const swap = deg === 90 || deg === 270;
+  const drawW = swap ? canvasH : canvasW;
+  const drawH = swap ? canvasW : canvasH;
+  if (deg) {
+    ctx.save();
+    ctx.translate(canvasW / 2, canvasH / 2);
+    ctx.rotate(deg * Math.PI / 180);
+    ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+    ctx.restore();
+  } else {
+    ctx.drawImage(img, 0, 0, canvasW, canvasH);
+  }
+}
+
+function drawArrow(ctx, x1, y1, x2, y2, lw) {
+  ctx.lineWidth = lw;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  const ang = Math.atan2(y2 - y1, x2 - x1);
+  const head = Math.max(lw * 3.2, 10);
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - head * Math.cos(ang - Math.PI / 7), y2 - head * Math.sin(ang - Math.PI / 7));
+  ctx.lineTo(x2 - head * Math.cos(ang + Math.PI / 7), y2 - head * Math.sin(ang + Math.PI / 7));
+  ctx.closePath();
+  ctx.fill();
+}
+
+function wrapText(ctx, text, maxWidth) {
+  const words = text.split(/\s+/);
+  const lines = [];
+  let line = '';
+  words.forEach(word => {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = test;
+    }
+  });
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawNotePlate(ctx, text, canvasW, canvasH) {
+  if (!text) return;
+  const pad = canvasW * 0.018;
+  const fontSize = Math.max(canvasW * 0.02, 12);
+  ctx.font = `${fontSize}px ${FONT_STACK}`;
+  const maxTextWidth = canvasW * 0.42;
+  const lines = wrapText(ctx, text, maxTextWidth);
+  const lineH = fontSize * 1.32;
+  const boxW = maxTextWidth + pad * 2;
+  const boxH = lines.length * lineH + pad * 1.2;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, canvasH - boxH, boxW, boxH);
+  ctx.fillStyle = '#fff';
+  ctx.textBaseline = 'top';
+  lines.forEach((line, i) => {
+    ctx.fillText(line, pad, canvasH - boxH + pad * 0.6 + i * lineH);
+  });
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// Renders a text annotation in one of TEXT_LABEL_STYLES. All styles anchor
+// their baseline at (a.x, a.y) the same way the old plain-plate style did,
+// so switching styles doesn't shift a label's pointed-at position.
+function drawTextLabel(ctx, a, canvasW, canvasH, minDim) {
+  const size = (a.fontSizeFrac || 0.035) * minDim;
+  const x = a.x * canvasW, y = a.y * canvasH;
+  const style = a.style || 'tag';
+
+  if (style === 'terminal') {
+    ctx.font = `600 ${size}px ${MONO_FONT_STACK}`;
+    const label = '> ' + a.text;
+    const w = ctx.measureText(label).width;
+    const padX = size * 0.5, padY = size * 0.35;
+    ctx.fillStyle = '#0b0f0a';
+    ctx.fillRect(x - padX, y - size - padY, w + padX * 2, size + padY * 2);
+    ctx.fillStyle = a.color;
+    ctx.textBaseline = 'top';
+    ctx.fillText(label, x, y - size + padY * 0.3);
+    return;
+  }
+
+  if (style === 'asset') {
+    ctx.font = `600 ${size}px ${FONT_STACK}`;
+    const w = ctx.measureText(a.text).width;
+    const padX = size * 0.55, padY = size * 0.35;
+    const notchW = size * 0.55;
+    const boxX = x - padX - notchW, boxY = y - size - padY;
+    const boxW = w + padX * 2 + notchW, boxH = size + padY * 2;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(boxX, boxY, boxW, boxH);
+    ctx.strokeStyle = '#1c1d1a';
+    ctx.lineWidth = Math.max(minDim * 0.0025, 1);
+    ctx.strokeRect(boxX, boxY, boxW, boxH);
+    ctx.beginPath();
+    ctx.arc(boxX + notchW / 2 + padX * 0.15, boxY + boxH / 2, size * 0.16, 0, Math.PI * 2);
+    ctx.fillStyle = a.color;
+    ctx.fill();
+    ctx.fillStyle = '#1c1d1a';
+    ctx.textBaseline = 'top';
+    ctx.fillText(a.text, x, y - size + padY * 0.3);
+    return;
+  }
+
+  if (style === 'plain') {
+    ctx.font = `700 ${size}px ${FONT_STACK}`;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = size * 0.22;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.textBaseline = 'top';
+    ctx.strokeText(a.text, x, y - size + 3);
+    ctx.fillStyle = a.color;
+    ctx.fillText(a.text, x, y - size + 3);
+    return;
+  }
+
+  // 'tag' (default) — solid rounded pill
+  ctx.font = `700 ${size}px ${FONT_STACK}`;
+  const w = ctx.measureText(a.text).width;
+  const padX = size * 0.55, padY = size * 0.32;
+  const boxW = w + padX * 2, boxH = size + padY * 2;
+  const boxX = x - padX, boxY = y - size - padY;
+  ctx.fillStyle = a.color;
+  roundRectPath(ctx, boxX, boxY, boxW, boxH, boxH / 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'top';
+  ctx.fillText(a.text, x, y - size + padY * 0.3);
+}
+
+// Shared render used by both the live editor and the PDF export bake step —
+// this single function is what guarantees the two stay pixel-consistent.
+function drawAnnotationsOnCtx(ctx, annotations, canvasW, canvasH, opts = {}) {
+  const minDim = Math.min(canvasW, canvasH);
+  (annotations || []).forEach(a => {
+    ctx.save();
+    ctx.strokeStyle = a.color;
+    ctx.fillStyle = a.color;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (a.type === 'freehand') {
+      ctx.lineWidth = (a.lineWidthFrac || 0.006) * minDim;
+      ctx.beginPath();
+      (a.points || []).forEach((p, i) => {
+        const x = p.x * canvasW, y = p.y * canvasH;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    } else if (a.type === 'arrow') {
+      drawArrow(ctx, a.x1 * canvasW, a.y1 * canvasH, a.x2 * canvasW, a.y2 * canvasH, (a.lineWidthFrac || 0.008) * minDim);
+    } else if (a.type === 'rect' || a.type === 'ellipse') {
+      ctx.lineWidth = (a.lineWidthFrac || 0.008) * minDim;
+      const x1 = a.x1 * canvasW, y1 = a.y1 * canvasH, x2 = a.x2 * canvasW, y2 = a.y2 * canvasH;
+      if (a.type === 'rect') {
+        ctx.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+      } else {
+        ctx.beginPath();
+        ctx.ellipse((x1 + x2) / 2, (y1 + y2) / 2, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else if (a.type === 'text') {
+      drawTextLabel(ctx, a, canvasW, canvasH, minDim);
+    } else if (a.type === 'icon') {
+      const icon = ICONS[a.iconKey];
+      if (icon) {
+        const s = (a.sizeFrac || 0.09) * minDim;
+        ctx.translate(a.x * canvasW - s / 2, a.y * canvasH - s / 2);
+        ctx.scale(s / 256, s / 256);
+        ctx.fillStyle = a.color;
+        ctx.fill(new Path2D(icon.d));
+      }
+    }
+    ctx.restore();
+  });
+  if (opts.note) drawNotePlate(ctx, opts.note, canvasW, canvasH);
+}
+
+// Rotation-aware fraction distances, used for hit-testing in the editor
+// (annotations are drawn in fraction space, so pixel-space hit-testing
+// converts through the current displayed width/height).
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  let t = lenSq ? ((px - x1) * dx + (py - y1) * dy) / lenSq : 0;
+  t = Math.max(0, Math.min(1, t));
+  const cx = x1 + t * dx, cy = y1 + t * dy;
+  return Math.hypot(px - cx, py - cy);
+}
+
+function hitTestAnnotation(item, fx, fy, dispW, dispH) {
+  const px = fx * dispW, py = fy * dispH;
+  const minDim = Math.min(dispW, dispH);
+  const list = item.annotations || [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const a = list[i];
+    if (a.type === 'icon') {
+      const r = ((a.sizeFrac || 0.09) * minDim) / 2;
+      if (Math.hypot(px - a.x * dispW, py - a.y * dispH) <= r + 6) return a;
+    } else if (a.type === 'text') {
+      const size = (a.fontSizeFrac || 0.035) * minDim;
+      const ax = a.x * dispW, ay = a.y * dispH;
+      const padX = size * 0.7, padY = size * 0.5;
+      if (px >= ax - padX && px <= ax + size * (a.text.length * 0.62) + padX && py >= ay - size - padY && py <= ay + size * 0.4 + padY) return a;
+    } else if (a.type === 'arrow' || a.type === 'freehand') {
+      const pts = a.type === 'arrow' ? [{ x: a.x1, y: a.y1 }, { x: a.x2, y: a.y2 }] : a.points;
+      for (let j = 0; j < pts.length - 1; j++) {
+        const d = distToSegment(px, py, pts[j].x * dispW, pts[j].y * dispH, pts[j + 1].x * dispW, pts[j + 1].y * dispH);
+        if (d <= 10) return a;
+      }
+    } else if (a.type === 'rect' || a.type === 'ellipse') {
+      const x1 = a.x1 * dispW, y1 = a.y1 * dispH, x2 = a.x2 * dispW, y2 = a.y2 * dispH;
+      if (px >= Math.min(x1, x2) - 6 && px <= Math.max(x1, x2) + 6 && py >= Math.min(y1, y2) - 6 && py <= Math.max(y1, y2) + 6) return a;
+    }
+  }
+  return null;
+}
+
+function translateAnnotation(a, dfx, dfy) {
+  if (a.points) {
+    a.points.forEach(p => { p.x = clamp01(p.x + dfx); p.y = clamp01(p.y + dfy); });
+  } else if (a.x1 !== undefined) {
+    a.x1 = clamp01(a.x1 + dfx); a.y1 = clamp01(a.y1 + dfy);
+    a.x2 = clamp01(a.x2 + dfx); a.y2 = clamp01(a.y2 + dfy);
+  } else if (a.x !== undefined) {
+    a.x = clamp01(a.x + dfx); a.y = clamp01(a.y + dfy);
+  }
+}
+
+function loadAnnotateCanvas(item) {
+  const img = new Image();
+  img.onload = () => {
+    annEditor.img = img;
+    const swap = item.rotation === 90 || item.rotation === 270;
+    const dispW = swap ? img.naturalHeight : img.naturalWidth;
+    const dispH = swap ? img.naturalWidth : img.naturalHeight;
+    annEditor.dispW = dispW;
+    annEditor.dispH = dispH;
+    const dpr = window.devicePixelRatio || 1;
+    els.annotateCanvas.width = Math.round(dispW * dpr);
+    els.annotateCanvas.height = Math.round(dispH * dpr);
+    els.annotateCanvas.style.width = dispW + 'px';
+    redrawAnnotateCanvas();
+  };
+  img.src = item.dataUrl;
+}
+
+// Bakes rotation + markup into item.previewDataUrl so the thumbnail grid
+// shows what was actually drawn, not just a "has markup" badge. Reuses the
+// exact same draw calls as the PDF export bake step for guaranteed parity.
+// Cleared back to null (falling back to the plain dataUrl) when there's
+// nothing to show, so un-annotated photos skip this entirely.
+// Thumbnails and the filmstrip only ever display at a few hundred CSS px,
+// so baking at full photo resolution (often 3000px+ on a phone) would waste
+// memory and time for no visible benefit. Annotation coordinates are
+// fractions of canvasW/H, so drawing into a smaller canvas scales everything
+// — photo, text, icons, strokes — down together automatically.
+const MAX_THUMB_DIM = 640;
+
+async function updateThumbnailPreview(item) {
+  const hasMarkup = (item.annotations && item.annotations.length > 0) || !!item.note;
+  if (!hasMarkup) {
+    item.previewDataUrl = null;
+    return;
+  }
+  const img = await loadImage(item.dataUrl);
+  const swap = item.rotation === 90 || item.rotation === 270;
+  let w = swap ? img.naturalHeight : img.naturalWidth;
+  let h = swap ? img.naturalWidth : img.naturalHeight;
+  if (Math.max(w, h) > MAX_THUMB_DIM) {
+    const scale = MAX_THUMB_DIM / Math.max(w, h);
+    w = Math.round(w * scale);
+    h = Math.round(h * scale);
+  }
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d');
+  drawRotatedImage(ctx, img, item.rotation || 0, w, h);
+  drawAnnotationsOnCtx(ctx, item.annotations, w, h, { note: item.note });
+  item.previewDataUrl = c.toDataURL('image/jpeg', 0.85);
+}
+
+function redrawAnnotateCanvas() {
+  const item = annEditor.item;
+  if (!item || !annEditor.img) return;
+  const ctx = els.annotateCanvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, annEditor.dispW, annEditor.dispH);
+  drawRotatedImage(ctx, annEditor.img, item.rotation || 0, annEditor.dispW, annEditor.dispH);
+  drawAnnotationsOnCtx(ctx, item.annotations, annEditor.dispW, annEditor.dispH, { note: els.annotateNoteInput.value });
+  if (annEditor.drawing) drawAnnotationsOnCtx(ctx, [annEditor.drawing], annEditor.dispW, annEditor.dispH);
+  if (annEditor.selectedId) {
+    const sel = (item.annotations || []).find(a => a.id === annEditor.selectedId);
+    if (sel) drawSelectionRing(ctx, sel, annEditor.dispW, annEditor.dispH);
+  }
+}
+
+function drawSelectionRing(ctx, a, canvasW, canvasH) {
+  ctx.save();
+  ctx.strokeStyle = '#2563eb';
+  ctx.setLineDash([5, 4]);
+  ctx.lineWidth = 1.5;
+  let x1, y1, x2, y2;
+  if (a.points) {
+    const xs = a.points.map(p => p.x), ys = a.points.map(p => p.y);
+    x1 = Math.min(...xs); x2 = Math.max(...xs); y1 = Math.min(...ys); y2 = Math.max(...ys);
+  } else if (a.x1 !== undefined) {
+    x1 = Math.min(a.x1, a.x2); x2 = Math.max(a.x1, a.x2);
+    y1 = Math.min(a.y1, a.y2); y2 = Math.max(a.y1, a.y2);
+  } else {
+    const minDim = Math.min(canvasW, canvasH);
+    const r = (a.sizeFrac || a.fontSizeFrac || 0.06) / 2;
+    x1 = a.x - r / (canvasW / minDim); x2 = a.x + r / (canvasW / minDim);
+    y1 = a.y - r / (canvasH / minDim); y2 = a.y + r / (canvasH / minDim);
+  }
+  const pad = 6;
+  ctx.strokeRect(x1 * canvasW - pad, y1 * canvasH - pad, (x2 - x1) * canvasW + pad * 2, (y2 - y1) * canvasH + pad * 2);
+  ctx.restore();
+}
+
+function canvasFractionFromEvent(e) {
+  const rect = els.annotateCanvas.getBoundingClientRect();
+  return { fx: clamp01((e.clientX - rect.left) / rect.width), fy: clamp01((e.clientY - rect.top) / rect.height) };
+}
+
+function setAnnotateTool(tool) {
+  annEditor.tool = tool;
+  annEditor.selectedId = null;
+  els.annotateDeleteSelected.disabled = true;
+  els.annotateToolSeg.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+  els.annotateIconPicker.hidden = tool !== 'icon';
+  els.annotateStylePicker.hidden = tool !== 'text';
+  const hints = {
+    select: 'Click an item to select it, drag to move, or Delete to remove',
+    text: 'Click on the photo to place a text label',
+    arrow: 'Drag from the label to the device to draw an arrow',
+    rect: 'Drag to draw a box',
+    ellipse: 'Drag to draw a circle',
+    freehand: 'Drag to draw freehand',
+    icon: 'Pick an icon below, then click on the photo to place it',
+  };
+  els.annotateHint.textContent = hints[tool] || '';
+  redrawAnnotateCanvas();
+}
+
+function promptTextAnnotation(e, fx, fy) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'annotate-text-input';
+  input.placeholder = 'Label…';
+  input.maxLength = 60;
+  input.style.left = e.clientX + 'px';
+  input.style.top = Math.max(e.clientY - 16, 4) + 'px';
+  document.body.appendChild(input);
+  input.focus();
+  let done = false;
+  const commit = () => {
+    if (done) return;
+    done = true;
+    const text = input.value.trim();
+    input.remove();
+    if (text && annEditor.item) {
+      annEditor.item.annotations.push({ id: newAnnId(), type: 'text', x: fx, y: fy, text, color: annEditor.color, fontSizeFrac: 0.035, style: annEditor.textStyle });
+    }
+    setAnnotateTool('select');
+  };
+  input.addEventListener('keydown', (e2) => {
+    if (e2.key === 'Enter') { e2.preventDefault(); commit(); }
+    else if (e2.key === 'Escape') { input.value = ''; commit(); }
+  });
+  input.addEventListener('blur', commit);
+}
+
+els.annotateCanvas.addEventListener('pointerdown', (e) => {
+  const item = annEditor.item;
+  if (!item) return;
+  // Prevent the browser's default mousedown focus-handling from stealing
+  // focus back after the text tool programmatically focuses its floating input.
+  e.preventDefault();
+  const { fx, fy } = canvasFractionFromEvent(e);
+  const tool = annEditor.tool;
+
+  if (tool === 'select') {
+    const hit = hitTestAnnotation(item, fx, fy, annEditor.dispW, annEditor.dispH);
+    annEditor.selectedId = hit ? hit.id : null;
+    els.annotateDeleteSelected.disabled = !hit;
+    if (hit) {
+      els.annotateCanvas.setPointerCapture(e.pointerId);
+      annEditor.dragging = { id: hit.id, lastFx: fx, lastFy: fy };
+    }
+    redrawAnnotateCanvas();
+    return;
+  }
+  if (tool === 'text') {
+    promptTextAnnotation(e, fx, fy);
+    return;
+  }
+  if (tool === 'icon') {
+    if (!annEditor.pendingIcon) { toast('Pick an icon first.', ''); return; }
+    item.annotations.push({ id: newAnnId(), type: 'icon', iconKey: annEditor.pendingIcon, x: fx, y: fy, sizeFrac: 0.09, color: annEditor.color });
+    redrawAnnotateCanvas();
+    return;
+  }
+  els.annotateCanvas.setPointerCapture(e.pointerId);
+  if (tool === 'freehand') {
+    annEditor.drawing = { type: 'freehand', points: [{ x: fx, y: fy }], color: annEditor.color, lineWidthFrac: 0.006 };
+  } else if (tool === 'arrow' || tool === 'rect' || tool === 'ellipse') {
+    annEditor.drawing = { type: tool, x1: fx, y1: fy, x2: fx, y2: fy, color: annEditor.color, lineWidthFrac: 0.008 };
+  }
+  redrawAnnotateCanvas();
+});
+
+els.annotateCanvas.addEventListener('pointermove', (e) => {
+  const item = annEditor.item;
+  if (!item) return;
+  const { fx, fy } = canvasFractionFromEvent(e);
+
+  if (annEditor.dragging) {
+    const a = item.annotations.find(x => x.id === annEditor.dragging.id);
+    if (a) {
+      translateAnnotation(a, fx - annEditor.dragging.lastFx, fy - annEditor.dragging.lastFy);
+      annEditor.dragging.lastFx = fx;
+      annEditor.dragging.lastFy = fy;
+      redrawAnnotateCanvas();
+    }
+    return;
+  }
+  if (!annEditor.drawing) return;
+  if (annEditor.drawing.type === 'freehand') {
+    const pts = annEditor.drawing.points;
+    const last = pts[pts.length - 1];
+    if (Math.hypot(fx - last.x, fy - last.y) > 0.003) pts.push({ x: fx, y: fy });
+  } else {
+    annEditor.drawing.x2 = fx;
+    annEditor.drawing.y2 = fy;
+  }
+  redrawAnnotateCanvas();
+});
+
+function finishAnnotateStroke(e) {
+  if (annEditor.dragging) {
+    annEditor.dragging = null;
+  }
+  if (annEditor.drawing) {
+    const d = annEditor.drawing;
+    const tiny = d.type === 'freehand'
+      ? d.points.length < 2
+      : Math.hypot((d.x2 - d.x1) * annEditor.dispW, (d.y2 - d.y1) * annEditor.dispH) < 4;
+    if (!tiny) { d.id = newAnnId(); annEditor.item.annotations.push(d); }
+    annEditor.drawing = null;
+    redrawAnnotateCanvas();
+  }
+}
+els.annotateCanvas.addEventListener('pointerup', finishAnnotateStroke);
+els.annotateCanvas.addEventListener('pointercancel', finishAnnotateStroke);
+
+document.addEventListener('keydown', (e) => {
+  if (!els.annotateOver.classList.contains('open')) return;
+  if (e.key === 'Escape') { closeAnnotate(); return; }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && annEditor.selectedId && document.activeElement === els.annotateCanvas) {
+    deleteSelectedAnnotation();
+  }
+});
+
+function deleteSelectedAnnotation() {
+  const item = annEditor.item;
+  if (!item || !annEditor.selectedId) return;
+  item.annotations = item.annotations.filter(a => a.id !== annEditor.selectedId);
+  annEditor.selectedId = null;
+  els.annotateDeleteSelected.disabled = true;
+  redrawAnnotateCanvas();
+}
+els.annotateDeleteSelected.addEventListener('click', deleteSelectedAnnotation);
+
+els.annotateUndo.addEventListener('click', () => {
+  const item = annEditor.item;
+  if (!item || !item.annotations.length) return;
+  item.annotations.pop();
+  annEditor.selectedId = null;
+  els.annotateDeleteSelected.disabled = true;
+  redrawAnnotateCanvas();
+});
+
+els.annotateClear.addEventListener('click', async () => {
+  const item = annEditor.item;
+  if (!item || !item.annotations.length) return;
+  const ok = await showConfirm('This will remove every label, arrow, shape, and icon on this photo.', { title: 'Clear all markup?', confirmLabel: 'Clear', danger: true });
+  if (!ok) return;
+  item.annotations = [];
+  annEditor.selectedId = null;
+  els.annotateDeleteSelected.disabled = true;
+  redrawAnnotateCanvas();
+});
+
+els.annotateNoteInput.addEventListener('input', redrawAnnotateCanvas);
+
+// Tool segmented control
+els.annotateToolSeg.querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', () => setAnnotateTool(btn.dataset.tool));
+});
+
+// Color swatches (built once)
+ANNOTATION_COLORS.forEach((hex, i) => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.style.background = hex;
+  btn.className = i === 0 ? 'active' : '';
+  btn.title = hex;
+  btn.addEventListener('click', () => {
+    annEditor.color = hex;
+    els.annotateColors.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+  els.annotateColors.appendChild(btn);
+});
+
+// Icon picker (built once)
+Object.keys(ICONS).forEach(key => {
+  const icon = ICONS[key];
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.title = icon.label;
+  btn.innerHTML = `<svg viewBox="0 0 256 256"><path fill="currentColor" d="${icon.d}"></path></svg>`;
+  btn.addEventListener('click', () => {
+    annEditor.pendingIcon = key;
+    els.annotateIconPicker.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+  els.annotateIconPicker.appendChild(btn);
+});
+
+// Text label style picker (built once)
+TEXT_LABEL_STYLES.forEach((s, i) => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = i === 0 ? 'active' : '';
+  btn.innerHTML = `<i class="${s.icon}" aria-hidden="true"></i><span>${escapeText(s.label)}</span>`;
+  btn.addEventListener('click', () => {
+    annEditor.textStyle = s.id;
+    els.annotateStylePicker.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+  els.annotateStylePicker.appendChild(btn);
+});
+
+function openAnnotate(item) {
+  annEditor.item = item;
+  annEditor.tool = 'select';
+  annEditor.selectedId = null;
+  annEditor.drawing = null;
+  annEditor.dragging = null;
+  annEditor.pendingIcon = null;
+  annEditor.color = ANNOTATION_COLORS[0];
+  annEditor.textStyle = TEXT_LABEL_STYLES[0].id;
+  els.annotateColors.querySelectorAll('button').forEach((b, i) => b.classList.toggle('active', i === 0));
+  els.annotateStylePicker.querySelectorAll('button').forEach((b, i) => b.classList.toggle('active', i === 0));
+  els.annotateNoteInput.value = item.note || '';
+  els.annotateOver.classList.add('open');
+  els.annotateOver.setAttribute('aria-hidden', 'false');
+  setAnnotateTool('select');
+  loadAnnotateCanvas(item);
+}
+async function closeAnnotate() {
+  const item = annEditor.item;
+  if (item) item.note = els.annotateNoteInput.value;
+  els.annotateOver.classList.remove('open');
+  els.annotateOver.setAttribute('aria-hidden', 'true');
+  annEditor.item = null;
+  annEditor.img = null;
+  if (item) await updateThumbnailPreview(item);
+  render();
+}
+els.annotateClose.addEventListener('click', closeAnnotate);
+els.annotateDone.addEventListener('click', closeAnnotate);
+els.annotateOver.addEventListener('click', (e) => { if (e.target === els.annotateOver) closeAnnotate(); });
 
 /* ---------- PDF generation ---------- */
 els.makePdf.addEventListener('click', generatePDF);
@@ -2401,10 +3372,11 @@ async function generatePDF() {
 
       let embedDataUrl = item.dataUrl;
       let embedType = item.file ? item.file.type : 'image/jpeg';
-      const needsCanvas = item.rotation || settings.quality !== 'original' || (item.exifOrientation && item.exifOrientation !== 1);
+      const hasMarkup = (item.annotations && item.annotations.length > 0) || !!item.note;
+      const needsCanvas = item.rotation || settings.quality !== 'original' || (item.exifOrientation && item.exifOrientation !== 1) || hasMarkup;
       if (needsCanvas) {
         const q = settings.quality === 'original' ? 0.92 : parseFloat(settings.quality);
-        embedDataUrl = await processImageForEmbed(item.dataUrl, item.rotation || 0, q);
+        embedDataUrl = await processImageForEmbed(item.dataUrl, item.rotation || 0, q, item.annotations, item.note);
         embedType = 'image/jpeg';
       }
       const bytes = await dataUrlToBytes(embedDataUrl);
@@ -2537,8 +3509,8 @@ function showProgress(label, total) {
   };
 }
 
-/* ---------- Image processing via canvas (rotation + compression) ---------- */
-function processImageForEmbed(dataUrl, deg, quality) {
+/* ---------- Image processing via canvas (rotation + compression + markup) ---------- */
+function processImageForEmbed(dataUrl, deg, quality, annotations, note) {
   return new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
@@ -2547,13 +3519,11 @@ function processImageForEmbed(dataUrl, deg, quality) {
       c.width  = swap ? img.naturalHeight : img.naturalWidth;
       c.height = swap ? img.naturalWidth  : img.naturalHeight;
       const ctx = c.getContext('2d');
-      if (deg) {
-        ctx.translate(c.width / 2, c.height / 2);
-        ctx.rotate(deg * Math.PI / 180);
-        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-      } else {
-        ctx.drawImage(img, 0, 0);
-      }
+      drawRotatedImage(ctx, img, deg, c.width, c.height);
+      // Annotation coordinates are fractions of the displayed (post-rotation)
+      // image, so this bakes them in correctly at full export resolution
+      // even though the editor may have authored them at a smaller on-screen size.
+      drawAnnotationsOnCtx(ctx, annotations, c.width, c.height, { note });
       resolve(c.toDataURL('image/jpeg', quality));
     };
     img.src = dataUrl;
