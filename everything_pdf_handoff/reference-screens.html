@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="design_doc_mode" content="canvas" />
+<title>Everything PDF — Screens</title>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css" />
+<style>
+:root{
+--bg:#fafaf7;--surface:#fff;--surface-2:#f4f3ee;--surface-3:#ecebe3;
+--border:#e4e2d9;--border-strong:#d2cfc2;
+--text:#1c1d1a;--text-dim:#5e605a;--text-faint:#96968c;
+--accent:#4338ca;--accent-hover:#3730a3;--accent-soft:#eeecfb;--accent-ring:rgba(67,56,202,.22);
+--sib:#2563EB;
+--font:"Helvetica Neue",Helvetica,Arial,sans-serif;
+--r:6px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font);color:var(--text);-webkit-font-smoothing:antialiased}
+a{color:var(--accent);text-decoration:none}a:hover{color:var(--accent-hover);text-decoration:underline}
+/* ── frame shell ── */
+.frame{position:absolute;background:var(--bg);color:var(--text);border:1px solid var(--border-strong);overflow:hidden;display:flex;flex-direction:column}
+.frame-label{position:absolute;font-size:15px;font-weight:600;color:#6b6b62;letter-spacing:.01em}
+.frame-label small{display:block;font-weight:400;font-size:12.5px;color:#9a9a90;margin-top:3px;letter-spacing:0}
+/* ── dark theme ── */
+.dark{--bg:#16171a;--surface:#1e2024;--surface-2:#24262b;--surface-3:#2c2f35;
+--border:#2f3238;--border-strong:#3a3e45;
+--text:#eceded;--text-dim:#a2a5aa;--text-faint:#71757c;
+--accent:#7c6ff0;--accent-hover:#8f84f4;--accent-soft:#252338;--accent-ring:rgba(124,111,240,.3);--sib:#5b8def}
+/* ── top bar ── */
+.topbar{height:52px;flex:none;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:0 18px}
+.lockup{display:flex;align-items:center;gap:10px}
+.lockup .wm{font-size:19px;font-weight:500;letter-spacing:-.025em;line-height:1}
+.lockup .wm b{font-weight:700;color:var(--accent)}
+.family{display:flex;align-items:center;gap:7px;padding-left:16px;margin-left:2px;border-left:1px solid var(--border);font-size:11.5px;color:var(--text-faint);letter-spacing:.01em}
+.family .sibwm{font-weight:500;color:var(--text-dim);letter-spacing:-.02em;font-size:12.5px}
+.family .sibwm b{font-weight:700;color:var(--sib)}
+.topbar .spacer{flex:1}
+.tb-user{width:28px;height:28px;border-radius:50%;background:var(--surface-3);border:1px solid var(--border);display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--text-dim)}
+/* ── buttons ── */
+.btn{height:34px;padding:0 13px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);border-radius:var(--r);font-size:13px;font-weight:500;font-family:inherit;display:inline-flex;align-items:center;gap:7px;cursor:pointer;white-space:nowrap}
+.btn i{font-size:15px;color:var(--text-dim)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary i{color:#fff}
+.btn.sm{height:28px;padding:0 10px;font-size:12px}
+.btn.icon{width:34px;padding:0;justify-content:center}
+/* ── generic ── */
+.h1{font-size:22px;font-weight:600;letter-spacing:-.02em;margin:0}
+.sub{font-size:13px;color:var(--text-dim);margin:5px 0 0}
+.eyebrow{font-size:10.5px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--text-faint)}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r)}
+.divide{height:1px;background:var(--border)}
+/* ── dashboard ── */
+.dash{flex:1;overflow:hidden;padding:26px 30px;display:flex;flex-direction:column;gap:22px}
+.dash-head{display:flex;align-items:flex-end;justify-content:space-between}
+.tmpl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.tcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column}
+.tcard.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.tthumb{height:150px;background:var(--surface-2);border-bottom:1px solid var(--border);position:relative;display:grid;place-items:center;padding:14px}
+.mini-doc{width:100%;height:100%;background:#fff;border:1px solid var(--border);box-shadow:0 1px 2px rgba(0,0,0,.05);padding:10px 11px;display:flex;flex-direction:column;gap:5px}
+.dark .mini-doc{background:#f4f4f2}
+.mini-doc .l{height:4px;background:#dedcd4;border-radius:1px}
+.mini-doc .l.t{height:7px;width:52%;background:#b9b7ae}
+.mini-doc .f{height:9px;background:rgba(67,56,202,.13);border:1px solid rgba(67,56,202,.4);border-radius:2px}
+.mini-doc .row{display:flex;gap:5px}.mini-doc .row>*{flex:1}
+.tbadge{position:absolute;top:9px;right:9px;background:var(--surface);border:1px solid var(--border-strong);border-radius:3px;padding:2px 6px;font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-dim);display:flex;align-items:center;gap:4px}
+.tbadge i{font-size:11px;color:var(--accent)}
+.tmeta{padding:11px 13px 12px}
+.tmeta .n{font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+.tmeta .d{font-size:11.5px;color:var(--text-faint);margin-top:4px;display:flex;gap:8px}
+.dropzone{border:1.5px dashed var(--border-strong);border-radius:var(--r);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:34px;text-align:center}
+.dropzone i{font-size:26px;color:var(--text-faint)}
+.dropzone .t{font-size:14px;font-weight:600}
+.dropzone .s{font-size:12px;color:var(--text-dim)}
+/* ── editor ── */
+.toolbar{height:46px;flex:none;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:0 14px}
+.tool{height:32px;min-width:32px;padding:0 10px;border-radius:5px;border:1px solid transparent;background:transparent;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-dim);cursor:pointer;font-family:inherit}
+.tool i{font-size:16px}
+.tool.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.tsep{width:1px;height:22px;background:var(--border);margin:0 3px}
+.docname{font-size:12.5px;color:var(--text-dim);display:flex;align-items:center;gap:7px}
+.docname b{color:var(--text);font-weight:600}
+.split{flex:1;display:flex;min-height:0}
+.stage{flex:1;background:var(--surface-2);overflow:hidden;display:flex;flex-direction:column;align-items:center;padding:20px;gap:12px;min-width:0}
+.pagebar{display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--text-faint)}
+.pagebar .z{display:flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);border-radius:5px;padding:3px 8px;color:var(--text-dim)}
+/* pdf page */
+.page{width:100%;max-width:620px;background:#fff;border:1px solid var(--border-strong);box-shadow:0 2px 10px rgba(0,0,0,.07);padding:30px 34px;flex:1;min-height:0;display:flex;flex-direction:column;gap:16px;color:#1c1d1a;overflow:hidden}
+.dark .page{box-shadow:0 4px 18px rgba(0,0,0,.5)}
+.pg-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1.5px solid #1c1d1a;padding-bottom:11px}
+.pg-head .co{font-size:14.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
+.pg-head .co small{display:block;font-size:9.5px;font-weight:400;letter-spacing:.06em;color:#7a7a72;margin-top:4px;text-transform:uppercase}
+.pg-head .ti{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#5e605a;text-align:right}
+.pg-sec{font-size:9.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:#8a8a80;margin-bottom:8px}
+.frow{display:flex;align-items:center;gap:12px;font-size:11.5px;color:#3a3b37;padding:4.5px 0}
+.frow .lab{width:150px;flex:none;letter-spacing:.01em}
+.frow .lab.i{font-style:normal}
+/* placed field */
+.fld{flex:1;height:26px;border:1px solid var(--accent);background:rgba(67,56,202,.09);border-radius:3px;display:flex;align-items:center;padding:0 8px;font-size:11.5px;color:#1c1d1a;position:relative}
+.fld.money{justify-content:flex-end;font-variant-numeric:tabular-nums}
+.fld.empty{color:#a9a9a0}
+.fld.active{box-shadow:0 0 0 3px var(--accent-ring);background:rgba(67,56,202,.05);border-width:1.5px}
+.fld.active::after{content:"";position:absolute;right:7px;top:5px;bottom:5px;width:1.5px;background:var(--accent)}
+.fld.num::before{content:"#";position:absolute;left:-14px;font-size:9px;font-weight:700;color:var(--accent);opacity:.75}
+.fld.dead{border-color:#cfcdc4;background:#f7f6f2;color:#8f8f86}
+.handle{position:absolute;width:6px;height:6px;background:#fff;border:1.5px solid var(--accent);border-radius:1px}
+.handle.tl{left:-4px;top:-4px}.handle.tr{right:-4px;top:-4px}.handle.bl{left:-4px;bottom:-4px}.handle.br{right:-4px;bottom:-4px}
+.totrow{margin-top:auto;border-top:1.5px solid #1c1d1a;padding-top:11px;display:flex;align-items:center;gap:12px}
+.totrow .lab{width:150px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.fld.total{height:32px;font-size:14px;font-weight:700;border-width:1.5px;background:rgba(67,56,202,.13)}
+.sigbox{flex:1;height:44px;border-bottom:1px solid #1c1d1a;display:flex;align-items:flex-end;justify-content:center;padding-bottom:2px}
+.sigmark{font-family:"Segoe Script","Bradley Hand",cursive;font-size:24px;color:#1c2a4a;transform:rotate(-2.5deg)}
+/* right panel */
+.rpanel{width:400px;flex:none;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.rp-head{height:42px;flex:none;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:0 12px}
+.rp-head .t{font-size:12.5px;font-weight:600;flex:1;display:flex;align-items:center;gap:7px}
+.rp-head .t i{font-size:15px;color:var(--text-dim)}
+.rp-tabs{display:flex;gap:2px;padding:8px 10px 0}
+.rtab{padding:6px 11px;font-size:12px;color:var(--text-dim);border-radius:5px 5px 0 0;border:1px solid transparent;border-bottom:none;cursor:pointer}
+.rtab.on{background:var(--surface-2);border-color:var(--border);color:var(--text);font-weight:600}
+.rp-body{flex:1;overflow:hidden;padding:14px;display:flex;flex-direction:column;gap:14px;min-height:0}
+/* reference photo */
+.photo{flex:1;min-height:0;border:1px solid var(--border);border-radius:var(--r);background:#2b2a26;position:relative;overflow:hidden;display:grid;place-items:center}
+.photo .ph{text-align:center;color:#8d8a80;font-size:11.5px;line-height:1.7;padding:20px}
+.photo .ph i{font-size:30px;display:block;margin-bottom:8px}
+.photo .zoomctl{position:absolute;bottom:9px;left:9px;display:flex;gap:1px;background:rgba(20,20,18,.82);border-radius:5px;padding:3px;backdrop-filter:blur(4px)}
+.photo .zoomctl button{width:26px;height:24px;border:none;background:transparent;color:#d8d6cf;font-size:14px;cursor:pointer;display:grid;place-items:center;font-family:inherit}
+.scratch{flex:none;border:1px solid var(--border);border-radius:var(--r);background:var(--surface-2);padding:10px 11px;display:flex;flex-direction:column;gap:7px}
+.scratch .sh{display:flex;align-items:center;justify-content:space-between}
+.scratch .sh .l{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint)}
+.scratch textarea{border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;font-size:11.5px;line-height:1.65;padding:8px 9px;resize:none;height:96px}
+/* field list */
+.flist{display:flex;flex-direction:column;gap:1px;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.fitem{display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--surface);font-size:12.5px;border-bottom:1px solid var(--border)}
+.fitem:last-child{border-bottom:none}
+.fitem.on{background:var(--accent-soft)}
+.fitem .grip{color:var(--text-faint);font-size:14px}
+.fitem .nm{flex:1;letter-spacing:-.005em}
+.fitem .tag{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:3px;background:var(--surface-3);color:var(--text-dim)}
+.fitem .tag.n{background:var(--accent-soft);color:var(--accent)}
+.chk{width:15px;height:15px;border:1.5px solid var(--border-strong);border-radius:3px;flex:none;display:grid;place-items:center;background:var(--surface)}
+.chk.on{background:var(--accent);border-color:var(--accent);color:#fff;font-size:10px}
+.chk.on::after{content:"✓";font-weight:700;line-height:1}
+.fgroup{padding:10px 11px 11px;background:var(--surface-2);border-top:1px solid var(--border)}
+.fgroup .gl{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);margin-bottom:8px}
+.frowck{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:4px 0;color:var(--text-dim)}
+.frowck .v{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--text)}
+.sumline{display:flex;align-items:center;gap:9px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--border-strong);font-size:12.5px;font-weight:600}
+.sumline .v{margin-left:auto;font-variant-numeric:tabular-nums}
+.note{font-size:11.5px;line-height:1.6;color:var(--text-faint);display:flex;gap:7px}
+.note i{font-size:14px;flex:none;margin-top:1px}
+/* prop rows */
+.prop{display:flex;flex-direction:column;gap:6px}
+.prop .pl{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint)}
+.inp{height:32px;border:1px solid var(--border-strong);border-radius:5px;background:var(--surface);padding:0 9px;font-size:12.5px;display:flex;align-items:center;color:var(--text)}
+.inp.foc{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+.seg{display:flex;border:1px solid var(--border-strong);border-radius:5px;overflow:hidden}
+.seg span{flex:1;text-align:center;padding:7px 0;font-size:12px;color:var(--text-dim);border-right:1px solid var(--border)}
+.seg span:last-child{border-right:none}
+.seg span.on{background:var(--accent);color:#fff;font-weight:600}
+/* export sheet */
+.scrim{position:absolute;inset:0;background:rgba(20,20,18,.4);backdrop-filter:blur(1.5px)}
+.sheet{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:470px;background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 18px 50px rgba(0,0,0,.24);overflow:hidden}
+.sheet-h{padding:16px 18px 14px;border-bottom:1px solid var(--border)}
+.sheet-b{padding:16px 18px;display:flex;flex-direction:column;gap:15px}
+.sheet-f{padding:13px 18px;border-top:1px solid var(--border);background:var(--surface-2);display:flex;justify-content:flex-end;gap:9px}
+.optrow{display:flex;gap:10px;align-items:flex-start}
+.optrow .ot{font-size:12.5px;font-weight:500}
+.optrow .os{font-size:11.5px;color:var(--text-faint);margin-top:3px;line-height:1.5}
+.filesize{display:flex;align-items:center;gap:9px;padding:10px 11px;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;font-size:12px;color:var(--text-dim)}
+.filesize i{font-size:17px;color:var(--accent)}
+.filesize b{color:var(--text);font-weight:600}
+/* setup overlay bits */
+.setup-hint{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);background:rgba(28,29,26,.92);color:#f2f1ec;font-size:11.5px;padding:8px 13px;border-radius:6px;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.setup-hint i{font-size:14px;opacity:.7}
+kbd{font-family:inherit;font-size:10.5px;background:rgba(255,255,255,.15);border-radius:3px;padding:1.5px 5px}
+</style></head>
+<body>
+
+<!-- ══ FRAME 1 · DASHBOARD ══ -->
+<div class="frame-label" style="left:0;top:0;width:1440px">1 · Dashboard<small>Saved templates open the editor with fields already placed. New PDFs enter through the drop path.</small></div>
+<div class="frame" data-screen-label="01 Dashboard" style="left:0;top:56px;width:1440px;height:880px">
+  <div class="topbar">
+    <div class="lockup">
+      <svg width="26" height="26" viewBox="0 0 56 56"><rect x="1" y="1" width="54" height="54" rx="9" fill="#4338ca"/><path d="M12 19 L12 12 L19 12" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M44 19 L44 12 L37 12" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M12 37 L12 44 L19 44" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M44 37 L44 44 L37 44" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><rect x="19" y="25" width="18" height="2.6" fill="#fff"/><rect x="19" y="31" width="11" height="2.6" fill="#fff"/></svg>
+      <div class="wm">everything<b>pdf</b></div>
+    </div>
+    <div class="family">
+      <span>Also in this suite</span>
+      <span class="sibwm">pics<b>2</b>pdf</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn"><i class="ph ph-gear"></i>Settings</button>
+    <div class="tb-user">DM</div>
+  </div>
+  <div class="dash">
+    <div class="dash-head">
+      <div>
+        <h2 class="h1">Templates</h2>
+        <p class="sub">Field positions, numeric flags and totals are saved per template.</p>
+      </div>
+      <div style="display:flex;gap:9px">
+        <button class="btn"><i class="ph ph-sliders-horizontal"></i>Manage fields</button>
+        <button class="btn primary"><i class="ph-bold ph-plus"></i>New template</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="eyebrow" style="margin-bottom:11px">Saved templates</div>
+      <div class="tmpl-grid">
+        <div class="tcard sel">
+          <div class="tthumb">
+            <div class="tbadge"><i class="ph-bold ph-sigma"></i>Auto-total</div>
+            <div class="mini-doc">
+              <div class="l t"></div><div class="l" style="width:34%"></div>
+              <div style="height:4px"></div>
+              <div class="row"><div class="l" style="flex:.7"></div><div class="f"></div></div>
+              <div class="row"><div class="l" style="flex:.7"></div><div class="f"></div></div>
+              <div class="row"><div class="l" style="flex:.7"></div><div class="f"></div></div>
+              <div class="row"><div class="l" style="flex:.7"></div><div class="f"></div></div>
+              <div style="height:3px"></div>
+              <div class="row"><div class="l" style="flex:.7;background:#b9b7ae"></div><div class="f" style="height:11px;background:rgba(67,56,202,.22)"></div></div>
+            </div>
+          </div>
+          <div class="tmeta">
+            <div class="n">Low-Voltage Bid Form</div>
+            <div class="d"><span>9 fields</span><span>·</span><span>4 sum to total</span></div>
+          </div>
+        </div>
+        <div class="tcard">
+          <div class="tthumb">
+            <div class="mini-doc">
+              <div class="l t"></div><div class="l" style="width:60%"></div>
+              <div style="height:5px"></div>
+              <div class="row"><div class="l" style="flex:.6"></div><div class="f"></div></div>
+              <div class="row"><div class="l" style="flex:.6"></div><div class="f"></div></div>
+              <div style="height:5px"></div><div class="l" style="width:80%"></div><div class="l" style="width:70%"></div>
+              <div style="margin-top:auto" class="f"></div>
+            </div>
+          </div>
+          <div class="tmeta">
+            <div class="n">Service Call Ticket</div>
+            <div class="d"><span>6 fields</span><span>·</span><span>signature</span></div>
+          </div>
+        </div>
+        <div class="tcard">
+          <div class="tthumb">
+            <div class="mini-doc">
+              <div class="l t" style="width:40%"></div>
+              <div style="height:4px"></div>
+              <div class="row"><div class="f"></div><div class="f"></div></div>
+              <div class="row"><div class="l"></div><div class="l"></div></div>
+              <div class="row"><div class="f"></div><div class="f"></div></div>
+              <div class="row"><div class="l"></div><div class="l"></div></div>
+              <div class="row"><div class="f"></div><div class="f"></div></div>
+            </div>
+          </div>
+          <div class="tmeta">
+            <div class="n">Rough-In Checklist</div>
+            <div class="d"><span>14 fields</span></div>
+          </div>
+        </div>
+        <div class="tcard">
+          <div class="tthumb">
+            <div class="tbadge"><i class="ph-bold ph-sigma"></i>Auto-total</div>
+            <div class="mini-doc">
+              <div class="l t" style="width:44%"></div>
+              <div class="l" style="width:28%"></div>
+              <div style="height:6px"></div>
+              <div class="row"><div class="l" style="flex:1.4"></div><div class="f"></div></div>
+              <div class="row"><div class="l" style="flex:1.4"></div><div class="f"></div></div>
+              <div style="margin-top:auto" class="row"><div class="l" style="flex:1.4;background:#b9b7ae"></div><div class="f" style="height:11px;background:rgba(67,56,202,.22)"></div></div>
+            </div>
+          </div>
+          <div class="tmeta">
+            <div class="n">Change Order</div>
+            <div class="d"><span>7 fields</span><span>·</span><span>2 sum to total</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="eyebrow" style="margin-bottom:11px">One-off edit</div>
+      <div class="dropzone">
+        <i class="ph ph-file-arrow-down"></i>
+        <div class="t">Drop a PDF here to edit it once</div>
+        <div class="s">Existing form fields are detected automatically. Nothing is saved unless you turn it into a template.</div>
+        <div style="display:flex;gap:9px;margin-top:5px">
+          <button class="btn"><i class="ph ph-folder-open"></i>Browse files</button>
+          <button class="btn"><i class="ph ph-bookmark-simple"></i>Save as template after</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FRAME 2 · EDITOR — FILLING ══ -->
+<div class="frame-label" style="left:1520px;top:0;width:1440px">2 · Editor — filling fields<small>Fields carry over from the template. Numeric fields feed the total live; the total field is not typed into.</small></div>
+<div class="frame" data-screen-label="02 Editor filling" style="left:1520px;top:56px;width:1440px;height:880px">
+  <div class="topbar">
+    <div class="lockup">
+      <svg width="26" height="26" viewBox="0 0 56 56"><rect x="1" y="1" width="54" height="54" rx="9" fill="#4338ca"/><path d="M12 19 L12 12 L19 12" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M44 19 L44 12 L37 12" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M12 37 L12 44 L19 44" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M44 37 L44 44 L37 44" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><rect x="19" y="25" width="18" height="2.6" fill="#fff"/><rect x="19" y="31" width="11" height="2.6" fill="#fff"/></svg>
+      <div class="wm">everything<b>pdf</b></div>
+    </div>
+    <div class="tsep"></div>
+    <div class="docname"><i class="ph ph-file-pdf" style="font-size:15px"></i><b>Low-Voltage Bid Form</b><span>— Nakamura Residence</span></div>
+    <div class="spacer"></div>
+    <span style="font-size:11.5px;color:var(--text-faint);display:flex;align-items:center;gap:6px"><i class="ph ph-cloud-check" style="font-size:14px"></i>Saved 12s ago</span>
+    <button class="btn"><i class="ph ph-image-square"></i>Reference</button>
+    <button class="btn primary"><i class="ph-bold ph-export"></i>Export PDF</button>
+  </div>
+  <div class="toolbar">
+    <button class="tool on"><i class="ph ph-cursor"></i>Select</button>
+    <button class="tool"><i class="ph ph-textbox"></i>Text field</button>
+    <button class="tool"><i class="ph ph-check-square"></i>Checkbox</button>
+    <button class="tool"><i class="ph ph-signature"></i>Signature</button>
+    <div class="tsep"></div>
+    <button class="tool"><i class="ph ph-text-aa"></i>11 pt</button>
+    <button class="tool"><i class="ph ph-align-left"></i></button>
+    <div class="tsep"></div>
+    <button class="tool"><i class="ph ph-arrow-counter-clockwise"></i></button>
+    <button class="tool"><i class="ph ph-arrow-clockwise"></i></button>
+    <div class="spacer" style="flex:1"></div>
+    <span style="font-size:11.5px;color:var(--text-faint)">9 fields · 7 filled</span>
+    <div class="tsep"></div>
+    <button class="tool"><i class="ph ph-eye"></i>Preview flattened</button>
+  </div>
+  <div class="split">
+    <div class="stage">
+      <div class="pagebar">
+        <span>Page 1 of 1</span>
+        <div class="z"><i class="ph ph-minus" style="font-size:12px"></i><span>96%</span><i class="ph ph-plus" style="font-size:12px"></i></div>
+        <span>Letter · 8.5 × 11 in</span>
+      </div>
+      <div class="page">
+        <div class="pg-head">
+          <div class="co">Ridgeline Low-Voltage<small>Systems Integration · Lic. 1084-C</small></div>
+          <div class="ti">Bid Proposal<br />Form LV-14</div>
+        </div>
+        <div>
+          <div class="pg-sec">Project</div>
+          <div class="frow"><span class="lab">Client</span><div class="fld">Nakamura Residence</div></div>
+          <div class="frow"><span class="lab">Site address</span><div class="fld">1408 Ridgeline Ct, Boulder CO</div></div>
+          <div class="frow"><span class="lab">Prepared by</span><div class="fld">D. Marsh</div><span class="lab" style="width:44px;text-align:right">Date</span><div class="fld" style="flex:0 0 110px">04 / 18 / 26</div></div>
+        </div>
+        <div>
+          <div class="pg-sec">Scope pricing</div>
+          <div class="frow"><span class="lab">Equipment cost</span><div class="fld money num">4,820.00</div></div>
+          <div class="frow"><span class="lab">Materials</span><div class="fld money num">1,265.40</div></div>
+          <div class="frow"><span class="lab">Lift rental</span><div class="fld money num active">640.00<div class="handle tl"></div><div class="handle tr"></div><div class="handle bl"></div><div class="handle br"></div></div></div>
+          <div class="frow"><span class="lab">Labor</span><div class="fld money num">3,150.00</div></div>
+        </div>
+        <div class="totrow">
+          <span class="lab">Total bid</span>
+          <div class="fld total money">$ 9,875.40</div>
+        </div>
+        <div style="display:flex;gap:22px;align-items:flex-end;padding-top:6px">
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+            <div class="sigbox"><span class="sigmark">D. Marsh</span></div>
+            <span style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:#8a8a80">Authorized signature</span>
+          </div>
+          <div style="flex:0 0 150px;display:flex;flex-direction:column;gap:4px">
+            <div class="sigbox"><div class="fld" style="border:none;background:transparent;height:auto;padding:0 0 3px;font-size:11.5px">04 / 18 / 26</div></div>
+            <span style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:#8a8a80">Date</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="rpanel">
+      <div class="rp-head"><div class="t"><i class="ph ph-list-dashes"></i>Fields</div><button class="btn sm"><i class="ph ph-plus"></i>Add</button></div>
+      <div class="rp-body">
+        <div class="flist">
+          <div class="fitem"><i class="ph ph-dots-six-vertical grip"></i><span class="nm">Client</span><span class="tag">Text</span></div>
+          <div class="fitem"><i class="ph ph-dots-six-vertical grip"></i><span class="nm">Site address</span><span class="tag">Text</span></div>
+          <div class="fitem"><i class="ph ph-dots-six-vertical grip"></i><span class="nm">Equipment cost</span><span class="tag n">Number</span></div>
+          <div class="fitem"><i class="ph ph-dots-six-vertical grip"></i><span class="nm">Materials</span><span class="tag n">Number</span></div>
+          <div class="fitem on"><i class="ph ph-dots-six-vertical grip"></i><span class="nm" style="font-weight:600">Lift rental</span><span class="tag n">Number</span></div>
+          <div class="fitem"><i class="ph ph-dots-six-vertical grip"></i><span class="nm">Labor</span><span class="tag n">Number</span></div>
+          <div class="fitem"><i class="ph ph-dots-six-vertical grip"></i><span class="nm">Total bid</span><span class="tag n">Auto</span></div>
+          <div class="fgroup">
+            <div class="gl">Total bid · live</div>
+            <div class="frowck"><span class="chk on"></span>Equipment cost<span class="v">4,820.00</span></div>
+            <div class="frowck"><span class="chk on"></span>Materials<span class="v">1,265.40</span></div>
+            <div class="frowck"><span class="chk on"></span>Lift rental<span class="v">640.00</span></div>
+            <div class="frowck"><span class="chk on"></span>Labor<span class="v">3,150.00</span></div>
+            <div class="sumline"><span>Total</span><span class="v">9,875.40</span></div>
+          </div>
+        </div>
+        <div class="divide"></div>
+        <div class="eyebrow">Selected field</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+          <div class="prop"><span class="pl">Name</span><div class="inp">Lift rental</div></div>
+          <div class="prop"><span class="pl">Type</span><div class="inp">Number <i class="ph ph-caret-down" style="margin-left:auto;font-size:12px;color:var(--text-faint)"></i></div></div>
+        </div>
+        <div class="prop"><span class="pl">Behavior</span><div class="seg"><span>Plain</span><span class="on">Sums into total</span><span>Is a total</span></div></div>
+        <div class="note"><i class="ph ph-info"></i><span>Numeric behavior only appears on fields you mark as numbers, so plain PDFs never trigger math.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FRAME 3 · EDITOR — REFERENCE PHOTO ══ -->
+<div class="frame-label" style="left:0;top:1000px;width:1440px">3 · Editor — reference photo docked<small>The technician's photo sits beside the form while typing. Scratch box holds text pulled off the photo.</small></div>
+<div class="frame" data-screen-label="03 Editor reference" style="left:0;top:1056px;width:1440px;height:880px">
+  <div class="topbar">
+    <div class="lockup">
+      <svg width="26" height="26" viewBox="0 0 56 56"><rect x="1" y="1" width="54" height="54" rx="9" fill="#4338ca"/><path d="M12 19 L12 12 L19 12" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M44 19 L44 12 L37 12" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M12 37 L12 44 L19 44" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M44 37 L44 44 L37 44" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><rect x="19" y="25" width="18" height="2.6" fill="#fff"/><rect x="19" y="31" width="11" height="2.6" fill="#fff"/></svg>
+      <div class="wm">everything<b>pdf</b></div>
+    </div>
+    <div class="tsep"></div>
+    <div class="docname"><i class="ph ph-file-pdf" style="font-size:15px"></i><b>Low-Voltage Bid Form</b><span>— Nakamura Residence</span></div>
+    <div class="spacer"></div>
+    <button class="btn"><i class="ph ph-image-square" style="color:var(--accent)"></i>Reference</button>
+    <button class="btn primary"><i class="ph-bold ph-export"></i>Export PDF</button>
+  </div>
+  <div class="toolbar">
+    <button class="tool on"><i class="ph ph-cursor"></i>Select</button>
+    <button class="tool"><i class="ph ph-textbox"></i>Text field</button>
+    <button class="tool"><i class="ph ph-check-square"></i>Checkbox</button>
+    <button class="tool"><i class="ph ph-signature"></i>Signature</button>
+    <div class="tsep"></div>
+    <button class="tool"><i class="ph ph-text-aa"></i>11 pt</button>
+    <div class="spacer" style="flex:1"></div>
+    <span style="font-size:11.5px;color:var(--text-faint)">9 fields · 4 filled</span>
+    <div class="tsep"></div>
+    <button class="tool"><i class="ph ph-eye"></i>Preview flattened</button>
+  </div>
+  <div class="split">
+    <div class="stage" style="padding:16px">
+      <div class="page" style="max-width:560px;padding:26px 30px">
+        <div class="pg-head">
+          <div class="co">Ridgeline Low-Voltage<small>Systems Integration · Lic. 1084-C</small></div>
+          <div class="ti">Bid Proposal<br />Form LV-14</div>
+        </div>
+        <div>
+          <div class="pg-sec">Project</div>
+          <div class="frow"><span class="lab">Client</span><div class="fld">Nakamura Residence</div></div>
+          <div class="frow"><span class="lab">Site address</span><div class="fld">1408 Ridgeline Ct, Boulder CO</div></div>
+          <div class="frow"><span class="lab">Prepared by</span><div class="fld">D. Marsh</div></div>
+        </div>
+        <div>
+          <div class="pg-sec">Scope pricing</div>
+          <div class="frow"><span class="lab">Equipment cost</span><div class="fld money num">4,820.00</div></div>
+          <div class="frow"><span class="lab">Materials</span><div class="fld money num active">1,265.40<div class="handle tl"></div><div class="handle tr"></div><div class="handle bl"></div><div class="handle br"></div></div></div>
+          <div class="frow"><span class="lab">Lift rental</span><div class="fld money num empty">0.00</div></div>
+          <div class="frow"><span class="lab">Labor</span><div class="fld money num empty">0.00</div></div>
+        </div>
+        <div class="totrow">
+          <span class="lab">Total bid</span>
+          <div class="fld total money">$ 6,085.40</div>
+        </div>
+        <div style="display:flex;gap:20px;align-items:flex-end;padding-top:4px">
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+            <div class="sigbox" style="height:38px"></div>
+            <span style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:#8a8a80">Authorized signature</span>
+          </div>
+          <div style="flex:0 0 130px;display:flex;flex-direction:column;gap:4px">
+            <div class="sigbox" style="height:38px"></div>
+            <span style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:#8a8a80">Date</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="rpanel" style="width:440px">
+      <div class="rp-head">
+        <div class="t"><i class="ph ph-image-square"></i>Reference</div>
+        <button class="btn sm"><i class="ph ph-upload-simple"></i>Replace</button>
+        <button class="btn sm icon" style="width:28px"><i class="ph ph-arrow-square-out"></i></button>
+        <button class="btn sm icon" style="width:28px"><i class="ph ph-x"></i></button>
+      </div>
+      <div class="rp-tabs">
+        <span class="rtab on">Photo</span>
+        <span class="rtab">Fields</span>
+      </div>
+      <div class="rp-body" style="padding-top:0;border-top:1px solid var(--border);margin-top:-1px">
+        <div class="photo" style="margin-top:14px">
+          <div class="ph"><i class="ph ph-camera"></i>Technician's handwritten sheet<br /><span style="color:#6f6c64">Photo placeholder — drop or capture</span></div>
+          <div class="zoomctl">
+            <button><i class="ph ph-magnifying-glass-minus"></i></button>
+            <button><i class="ph ph-magnifying-glass-plus"></i></button>
+            <button><i class="ph ph-arrow-clockwise"></i></button>
+            <button><i class="ph ph-arrows-out"></i></button>
+          </div>
+        </div>
+        <div class="scratch">
+          <div class="sh">
+            <span class="l">Scratch — extracted text</span>
+            <button class="btn sm"><i class="ph ph-copy"></i>Copy</button>
+          </div>
+          <textarea readonly>equip 4820
+mat 1265.40
+lift — 1 day, 640
+labor 18h @ 175 = 3150</textarea>
+          <div class="note" style="font-size:11px"><i class="ph ph-note-pencil"></i><span>Free text. Nothing here is written to the PDF.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FRAME 4 · TEMPLATE SETUP ══ -->
+<div class="frame-label" style="left:1520px;top:1000px;width:1440px">4 · Template setup<small>Placing and naming fields, marking numbers, and choosing which ones sum into a total.</small></div>
+<div class="frame" data-screen-label="04 Template setup" style="left:1520px;top:1056px;width:1440px;height:880px">
+  <div class="topbar">
+    <div class="lockup">
+      <svg width="26" height="26" viewBox="0 0 56 56"><rect x="1" y="1" width="54" height="54" rx="9" fill="#4338ca"/><path d="M12 19 L12 12 L19 12" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M44 19 L44 12 L37 12" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M12 37 L12 44 L19 44" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M44 37 L44 44 L37 44" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><rect x="19" y="25" width="18" height="2.6" fill="#fff"/><rect x="19" y="31" width="11" height="2.6" fill="#fff"/></svg>
+      <div class="wm">everything<b>pdf</b></div>
+    </div>
+    <div class="tsep"></div>
+    <div class="docname"><i class="ph ph-sliders-horizontal" style="font-size:15px"></i><b>Template setup</b><span>— Low-Voltage Bid Form</span></div>
+    <div class="spacer"></div>
+    <button class="btn"><i class="ph ph-x"></i>Discard</button>
+    <button class="btn primary"><i class="ph-bold ph-check"></i>Save template</button>
+  </div>
+  <div class="toolbar">
+    <button class="tool"><i class="ph ph-cursor"></i>Select</button>
+    <button class="tool on"><i class="ph ph-textbox"></i>Draw field</button>
+    <button class="tool"><i class="ph ph-check-square"></i>Checkbox</button>
+    <button class="tool"><i class="ph ph-signature"></i>Signature slot</button>
+    <div class="tsep"></div>
+    <button class="tool"><i class="ph ph-magic-wand"></i>Detect existing fields</button>
+    <button class="tool"><i class="ph ph-grid-four"></i>Snap to grid</button>
+    <div class="spacer" style="flex:1"></div>
+    <span style="font-size:11.5px;color:var(--text-faint)">Drawing mode — drag a box on the page</span>
+  </div>
+  <div class="split">
+    <div class="stage" style="position:relative">
+      <div class="pagebar"><span>Page 1 of 1</span><div class="z"><i class="ph ph-minus" style="font-size:12px"></i><span>96%</span><i class="ph ph-plus" style="font-size:12px"></i></div></div>
+      <div class="page">
+        <div class="pg-head">
+          <div class="co">Ridgeline Low-Voltage<small>Systems Integration · Lic. 1084-C</small></div>
+          <div class="ti">Bid Proposal<br />Form LV-14</div>
+        </div>
+        <div>
+          <div class="pg-sec">Project</div>
+          <div class="frow"><span class="lab">Client</span><div class="fld dead">Text</div></div>
+          <div class="frow"><span class="lab">Site address</span><div class="fld dead">Text</div></div>
+          <div class="frow"><span class="lab">Prepared by</span><div class="fld dead">Text</div><span class="lab" style="width:44px;text-align:right">Date</span><div class="fld dead" style="flex:0 0 110px">Date</div></div>
+        </div>
+        <div>
+          <div class="pg-sec">Scope pricing</div>
+          <div class="frow"><span class="lab">Equipment cost</span><div class="fld money num">Number</div></div>
+          <div class="frow"><span class="lab">Materials</span><div class="fld money num">Number</div></div>
+          <div class="frow"><span class="lab">Lift rental</span><div class="fld money num">Number</div></div>
+          <div class="frow"><span class="lab">Labor</span><div class="fld money num active">Number<div class="handle tl"></div><div class="handle tr"></div><div class="handle bl"></div><div class="handle br"></div></div></div>
+        </div>
+        <div class="totrow">
+          <span class="lab">Total bid</span>
+          <div class="fld total money" style="justify-content:space-between"><span style="font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--accent)">Auto-total</span><span>Σ 4 fields</span></div>
+        </div>
+        <div style="display:flex;gap:22px;align-items:flex-end;padding-top:6px">
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+            <div class="sigbox" style="height:40px;align-items:center"><div class="fld dead" style="height:28px;justify-content:center;border-style:dashed">Signature slot</div></div>
+            <span style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:#8a8a80">Authorized signature</span>
+          </div>
+          <div style="flex:0 0 150px;display:flex;flex-direction:column;gap:4px">
+            <div class="sigbox" style="height:40px;align-items:center"><div class="fld dead" style="height:28px">Date</div></div>
+            <span style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:#8a8a80">Date</span>
+          </div>
+        </div>
+      </div>
+      <div class="setup-hint"><i class="ph ph-cursor-click"></i>Drag to draw a field · <kbd>N</kbd> mark as number · <kbd>Esc</kbd> cancel</div>
+    </div>
+    <div class="rpanel">
+      <div class="rp-head"><div class="t"><i class="ph ph-list-dashes"></i>Fields</div><span style="font-size:11.5px;color:var(--text-faint)">9</span></div>
+      <div class="rp-body">
+        <div class="prop"><span class="pl">Template name</span><div class="inp">Low-Voltage Bid Form</div></div>
+        <div class="divide"></div>
+        <div class="eyebrow">Selected field</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+          <div class="prop"><span class="pl">Name</span><div class="inp foc">Labor</div></div>
+          <div class="prop"><span class="pl">Type</span><div class="inp">Number <i class="ph ph-caret-down" style="margin-left:auto;font-size:12px;color:var(--text-faint)"></i></div></div>
+        </div>
+        <div class="prop"><span class="pl">Behavior</span><div class="seg"><span>Plain</span><span class="on">Sums into total</span><span>Is a total</span></div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+          <div class="prop"><span class="pl">Format</span><div class="inp">Currency · 2 dp</div></div>
+          <div class="prop"><span class="pl">Target total</span><div class="inp">Total bid</div></div>
+        </div>
+        <div class="divide"></div>
+        <div>
+          <div class="eyebrow" style="margin-bottom:9px">Totals on this template</div>
+          <div class="panel" style="padding:11px 12px">
+            <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600"><i class="ph-bold ph-sigma" style="color:var(--accent);font-size:14px"></i>Total bid<span style="margin-left:auto;font-size:11px;font-weight:400;color:var(--text-faint)">4 inputs</span></div>
+            <div style="margin-top:9px;display:flex;flex-direction:column;gap:1px">
+              <div class="frowck"><span class="chk on"></span>Equipment cost</div>
+              <div class="frowck"><span class="chk on"></span>Materials</div>
+              <div class="frowck"><span class="chk on"></span>Lift rental</div>
+              <div class="frowck"><span class="chk on"></span>Labor</div>
+              <div class="frowck" style="opacity:.6"><span class="chk"></span>Permit fee</div>
+            </div>
+          </div>
+        </div>
+        <div class="note"><i class="ph ph-warning-circle"></i><span>Templates with no numeric fields save without any total, and the editor hides the math entirely.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FRAME 5 · EXPORT SHEET ══ -->
+<div class="frame-label" style="left:0;top:2000px;width:1140px">5 · Export options<small>Flatten choice and filename, over the editor.</small></div>
+<div class="frame" data-screen-label="05 Export sheet" style="left:0;top:2056px;width:1140px;height:720px;position:absolute">
+  <div class="topbar">
+    <div class="lockup">
+      <svg width="26" height="26" viewBox="0 0 56 56"><rect x="1" y="1" width="54" height="54" rx="9" fill="#4338ca"/><path d="M12 19 L12 12 L19 12" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M44 19 L44 12 L37 12" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M12 37 L12 44 L19 44" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M44 37 L44 44 L37 44" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/><rect x="19" y="25" width="18" height="2.6" fill="#fff"/><rect x="19" y="31" width="11" height="2.6" fill="#fff"/></svg>
+      <div class="wm">everything<b>pdf</b></div>
+    </div>
+    <div class="tsep"></div>
+    <div class="docname"><i class="ph ph-file-pdf" style="font-size:15px"></i><b>Low-Voltage Bid Form</b></div>
+    <div class="spacer"></div>
+    <button class="btn primary"><i class="ph-bold ph-export"></i>Export PDF</button>
+  </div>
+  <div class="split" style="position:relative">
+    <div class="stage">
+      <div class="page" style="max-width:500px;padding:24px 28px">
+        <div class="pg-head"><div class="co">Ridgeline Low-Voltage<small>Systems Integration</small></div><div class="ti">Bid Proposal</div></div>
+        <div class="frow"><span class="lab">Client</span><div class="fld">Nakamura Residence</div></div>
+        <div class="frow"><span class="lab">Equipment cost</span><div class="fld money">4,820.00</div></div>
+        <div class="frow"><span class="lab">Materials</span><div class="fld money">1,265.40</div></div>
+        <div class="frow"><span class="lab">Lift rental</span><div class="fld money">640.00</div></div>
+        <div class="frow"><span class="lab">Labor</span><div class="fld money">3,150.00</div></div>
+        <div class="totrow"><span class="lab">Total bid</span><div class="fld total money">$ 9,875.40</div></div>
+      </div>
+    </div>
+    <div class="scrim"></div>
+    <div class="sheet">
+      <div class="sheet-h">
+        <h3 style="margin:0;font-size:15.5px;font-weight:600;letter-spacing:-.01em">Export PDF</h3>
+        <p class="sub" style="font-size:12px;margin-top:4px">9 fields written into the page.</p>
+      </div>
+      <div class="sheet-b">
+        <div class="prop"><span class="pl">Filename</span><div class="inp foc">Nakamura-Residence-Bid-2026-04-18.pdf</div></div>
+        <div class="prop"><span class="pl">Field handling</span>
+          <div class="optrow" style="padding:2px 0"><span class="chk on"></span><div><div class="ot">Flatten fields</div><div class="os">Text and signature become part of the page. Nobody can edit or clear them.</div></div></div>
+          <div class="optrow" style="padding:2px 0"><span class="chk"></span><div><div class="ot">Keep fields editable</div><div class="os">Stays a fillable PDF. Totals recalculate in readers that support it.</div></div></div>
+        </div>
+        <div class="divide"></div>
+        <div class="optrow"><span class="chk on"></span><div><div class="ot">Include reference photo as a final page</div><div class="os">Appends the technician's sheet after the form.</div></div></div>
+        <div class="filesize"><i class="ph ph-file-pdf"></i><span><b>1 page</b> · Letter · est. 412 KB</span></div>
+      </div>
+      <div class="sheet-f">
+        <button class="btn">Cancel</button>
+        <button class="btn primary"><i class="ph-bold ph-download-simple"></i>Export</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FRAME 6 · DARK ══ -->
+<div class="frame-label" style="left:1220px;top:2000px;width:1440px">6 · Dark theme — editor<small>Same layout, dark surfaces. For truck-cab and low-light use.</small></div>
+<div class="frame dark" data-screen-label="06 Dark editor" style="left:1220px;top:2056px;width:1440px;height:880px">
+  <div class="topbar">
+    <div class="lockup">
+      <svg width="26" height="26" viewBox="0 0 56 56"><rect x="1" y="1" width="54" height="54" rx="9" fill="#7c6ff0"/><path d="M12 19 L12 12 L19 12" stroke="#16171a" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M44 19 L44 12 L37 12" stroke="#16171a" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M12 37 L12 44 L19 44" stroke="#16171a" stroke-width="2.8" fill="none" stroke-linecap="square"/><path d="M44 37 L44 44 L37 44" stroke="#16171a" stroke-width="2.8" fill="none" stroke-linecap="square"/><rect x="19" y="25" width="18" height="2.6" fill="#16171a"/><rect x="19" y="31" width="11" height="2.6" fill="#16171a"/></svg>
+      <div class="wm">everything<b>pdf</b></div>
+    </div>
+    <div class="family"><span>Also in this suite</span><span class="sibwm">pics<b>2</b>pdf</span></div>
+    <div class="tsep"></div>
+    <div class="docname"><i class="ph ph-file-pdf" style="font-size:15px"></i><b>Low-Voltage Bid Form</b></div>
+    <div class="spacer"></div>
+    <button class="btn"><i class="ph ph-image-square"></i>Reference</button>
+    <button class="btn primary"><i class="ph-bold ph-export"></i>Export PDF</button>
+  </div>
+  <div class="toolbar">
+    <button class="tool on"><i class="ph ph-cursor"></i>Select</button>
+    <button class="tool"><i class="ph ph-textbox"></i>Text field</button>
+    <button class="tool"><i class="ph ph-check-square"></i>Checkbox</button>
+    <button class="tool"><i class="ph ph-signature"></i>Signature</button>
+    <div class="tsep"></div>
+    <button class="tool"><i class="ph ph-text-aa"></i>11 pt</button>
+    <div class="spacer" style="flex:1"></div>
+    <span style="font-size:11.5px;color:var(--text-faint)">9 fields · 7 filled</span>
+    <div class="tsep"></div>
+    <button class="tool"><i class="ph ph-eye"></i>Preview flattened</button>
+  </div>
+  <div class="split">
+    <div class="stage">
+      <div class="pagebar"><span>Page 1 of 1</span><div class="z"><i class="ph ph-minus" style="font-size:12px"></i><span>96%</span><i class="ph ph-plus" style="font-size:12px"></i></div></div>
+      <div class="page">
+        <div class="pg-head">
+          <div class="co">Ridgeline Low-Voltage<small>Systems Integration · Lic. 1084-C</small></div>
+          <div class="ti">Bid Proposal<br />Form LV-14</div>
+        </div>
+        <div>
+          <div class="pg-sec">Project</div>
+          <div class="frow"><span class="lab">Client</span><div class="fld" style="border-color:#4338ca;background:rgba(67,56,202,.1)">Nakamura Residence</div></div>
+          <div class="frow"><span class="lab">Site address</span><div class="fld" style="border-color:#4338ca;background:rgba(67,56,202,.1)">1408 Ridgeline Ct, Boulder CO</div></div>
+        </div>
+        <div>
+          <div class="pg-sec">Scope pricing</div>
+          <div class="frow"><span class="lab">Equipment cost</span><div class="fld money num" style="border-color:#4338ca;background:rgba(67,56,202,.1)">4,820.00</div></div>
+          <div class="frow"><span class="lab">Materials</span><div class="fld money num" style="border-color:#4338ca;background:rgba(67,56,202,.1)">1,265.40</div></div>
+          <div class="frow"><span class="lab">Lift rental</span><div class="fld money num" style="border-color:#4338ca;background:rgba(67,56,202,.1)">640.00</div></div>
+          <div class="frow"><span class="lab">Labor</span><div class="fld money num active" style="border-color:#4338ca">3,150.00<div class="handle tl" style="border-color:#4338ca"></div><div class="handle tr" style="border-color:#4338ca"></div><div class="handle bl" style="border-color:#4338ca"></div><div class="handle br" style="border-color:#4338ca"></div></div></div>
+        </div>
+        <div class="totrow"><span class="lab">Total bid</span><div class="fld total money" style="border-color:#4338ca;background:rgba(67,56,202,.16)">$ 9,875.40</div></div>
+        <div style="display:flex;gap:22px;align-items:flex-end;padding-top:6px">
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+            <div class="sigbox"><span class="sigmark">D. Marsh</span></div>
+            <span style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:#8a8a80">Authorized signature</span>
+          </div>
+          <div style="flex:0 0 150px;display:flex;flex-direction:column;gap:4px">
+            <div class="sigbox" style="justify-content:flex-start"><span style="font-size:11.5px;padding-bottom:3px">04 / 18 / 26</span></div>
+            <span style="font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:#8a8a80">Date</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="rpanel">
+      <div class="rp-head"><div class="t"><i class="ph ph-list-dashes"></i>Fields</div><button class="btn sm"><i class="ph ph-plus"></i>Add</button></div>
+      <div class="rp-body">
+        <div class="flist">
+          <div class="fitem"><i class="ph ph-dots-six-vertical grip"></i><span class="nm">Client</span><span class="tag">Text</span></div>
+          <div class="fitem"><i class="ph ph-dots-six-vertical grip"></i><span class="nm">Site address</span><span class="tag">Text</span></div>
+          <div class="fitem"><i class="ph ph-dots-six-vertical grip"></i><span class="nm">Equipment cost</span><span class="tag n">Number</span></div>
+          <div class="fitem"><i class="ph ph-dots-six-vertical grip"></i><span class="nm">Materials</span><span class="tag n">Number</span></div>
+          <div class="fitem"><i class="ph ph-dots-six-vertical grip"></i><span class="nm">Lift rental</span><span class="tag n">Number</span></div>
+          <div class="fitem on"><i class="ph ph-dots-six-vertical grip"></i><span class="nm" style="font-weight:600">Labor</span><span class="tag n">Number</span></div>
+          <div class="fitem"><i class="ph ph-dots-six-vertical grip"></i><span class="nm">Total bid</span><span class="tag n">Auto</span></div>
+          <div class="fgroup">
+            <div class="gl">Total bid · live</div>
+            <div class="frowck"><span class="chk on"></span>Equipment cost<span class="v">4,820.00</span></div>
+            <div class="frowck"><span class="chk on"></span>Materials<span class="v">1,265.40</span></div>
+            <div class="frowck"><span class="chk on"></span>Lift rental<span class="v">640.00</span></div>
+            <div class="frowck"><span class="chk on"></span>Labor<span class="v">3,150.00</span></div>
+            <div class="sumline"><span>Total</span><span class="v">9,875.40</span></div>
+          </div>
+        </div>
+        <div class="divide"></div>
+        <div class="eyebrow">Selected field</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+          <div class="prop"><span class="pl">Name</span><div class="inp">Labor</div></div>
+          <div class="prop"><span class="pl">Type</span><div class="inp">Number <i class="ph ph-caret-down" style="margin-left:auto;font-size:12px;color:var(--text-faint)"></i></div></div>
+        </div>
+        <div class="prop"><span class="pl">Behavior</span><div class="seg"><span>Plain</span><span class="on">Sums into total</span><span>Is a total</span></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style id="__om-edit-overrides"></style>
+</body></html>
