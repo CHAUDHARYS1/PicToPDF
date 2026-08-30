@@ -4,7 +4,7 @@
 window.EPDF = window.EPDF || {};
 
 EPDF.FieldModel = (function () {
-  const TYPES = ['text', 'number', 'checkbox', 'signature', 'date'];
+  const TYPES = ['text', 'number', 'checkbox', 'date'];
   const MIN_SIZE = 8; // pt — degenerate-drag guard
 
   let nextId = 1;
@@ -50,21 +50,33 @@ EPDF.FieldModel = (function () {
     return { ok: true, field: f };
   }
 
+  const UNDO_LIMIT = 50;
+
   function createStore() {
     let fields = [];
     let selectedId = null;
     let orderCounter = 0;
     const listeners = new Set();
+    // Structural-change snapshots only (add/remove/rect change) — a plain
+    // keystroke (valueOnly update) never pushes here, since the browser's
+    // own per-input undo already covers text edits within a field.
+    const undoStack = [];
 
     function emit(reason) {
       const snapshot = { fields: fields.slice(), selectedId, reason };
       listeners.forEach((fn) => fn(snapshot));
     }
 
+    function pushUndo() {
+      undoStack.push({ fields: fields.slice(), selectedId, timestamp: Date.now() });
+      if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    }
+
     function add(partial) {
+      pushUndo();
       const draft = createField({ ...partial, order: orderCounter++ });
       const result = validate(draft);
-      if (!result.ok) throw new Error(result.error);
+      if (!result.ok) { undoStack.pop(); throw new Error(result.error); }
       fields.push(result.field);
       selectedId = result.field.id;
       emit({ type: 'add', field: result.field });
@@ -74,12 +86,14 @@ EPDF.FieldModel = (function () {
     function update(id, patch) {
       const existing = fields.find((f) => f.id === id);
       if (!existing) return null;
+      const valueOnly = isValueOnlyPatch(patch);
+      if (!valueOnly) pushUndo();
       const merged = { ...existing, ...patch, rect: { ...existing.rect, ...(patch.rect || {}) } };
       const result = validate(merged);
-      if (!result.ok) throw new Error(result.error);
+      if (!result.ok) { if (!valueOnly) undoStack.pop(); throw new Error(result.error); }
 
       fields = fields.map((f) => (f.id === id ? result.field : f));
-      emit({ type: 'update', field: result.field, valueOnly: isValueOnlyPatch(patch) });
+      emit({ type: 'update', field: result.field, valueOnly });
       return result.field;
     }
 
@@ -91,9 +105,35 @@ EPDF.FieldModel = (function () {
     function remove(id) {
       const existing = fields.find((f) => f.id === id);
       if (!existing) return;
+      pushUndo();
       fields = fields.filter((f) => f.id !== id);
       if (selectedId === id) selectedId = null;
       emit({ type: 'remove', field: existing });
+    }
+
+    function undo() {
+      if (undoStack.length === 0) return false;
+      const snap = undoStack.pop();
+      fields = snap.fields;
+      selectedId = snap.selectedId;
+      emit({ type: 'undo' });
+      return true;
+    }
+
+    function canUndo() {
+      return undoStack.length > 0;
+    }
+
+    // Wipes accumulated history without touching the fields themselves —
+    // for the moment a PDF finishes loading: auto-detected/preset/restored
+    // fields all go through add(), which pushes undo entries same as any
+    // user action would, but the user hasn't done anything yet.
+    function clearUndoHistory() {
+      undoStack.length = 0;
+    }
+
+    function lastUndoTimestamp() {
+      return undoStack.length ? undoStack[undoStack.length - 1].timestamp : 0;
     }
 
     function select(id) {
@@ -123,7 +163,7 @@ EPDF.FieldModel = (function () {
       return () => listeners.delete(fn);
     }
 
-    return { add, update, remove, select, getSelected, list, byPage, get, subscribe };
+    return { add, update, remove, select, getSelected, list, byPage, get, subscribe, undo, canUndo, lastUndoTimestamp, clearUndoHistory };
   }
 
   return { TYPES, createField, validate, createStore };

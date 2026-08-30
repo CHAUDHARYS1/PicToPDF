@@ -38,7 +38,7 @@ EPDF.CanvasEditor = (function () {
       // grows during editing receives focus.
       el.addEventListener('focus', () => {
         const f = store.get(field.id);
-        if (!f || f.type === 'checkbox' || f.type === 'signature') return;
+        if (!f || f.type === 'checkbox') return;
         if (editingFieldId === f.id) return;
         const selected = store.getSelected();
         if (!selected || selected.id !== f.id) store.select(f.id);
@@ -52,7 +52,6 @@ EPDF.CanvasEditor = (function () {
       const isSelected = opts.selected;
       const isEditing = opts.editing;
       const isCheckbox = field.type === 'checkbox';
-      const isSignature = field.type === 'signature';
 
       el.className = 'fld' +
         (field.type === 'number' ? ' num' : '') +
@@ -66,7 +65,7 @@ EPDF.CanvasEditor = (function () {
       // wrapper drops out of tab order rather than doubling it. Checkboxes
       // skip this entirely — their native <input type=checkbox> is already
       // focusable on its own.
-      if (!isCheckbox && !isSignature) {
+      if (!isCheckbox) {
         el.tabIndex = isEditing ? -1 : 0;
       } else {
         el.removeAttribute('tabindex');
@@ -251,7 +250,7 @@ EPDF.CanvasEditor = (function () {
 
     function enterEditing(fieldId) {
       const field = store.get(fieldId);
-      if (!field || field.type === 'checkbox' || field.type === 'signature') return;
+      if (!field || field.type === 'checkbox') return;
       editingFieldId = fieldId;
       refreshOneField(fieldId);
     }

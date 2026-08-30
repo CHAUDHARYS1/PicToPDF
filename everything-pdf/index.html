@@ -49,6 +49,12 @@
     <button class="btn icon" id="theme-toggle" type="button" aria-label="Toggle dark mode">
       <i class="ph ph-moon" aria-hidden="true"></i>
     </button>
+    <button class="btn icon" id="fullscreen-btn" type="button" disabled title="Load a PDF first" aria-label="Toggle full screen">
+      <i class="ph ph-arrows-out" aria-hidden="true"></i>
+    </button>
+    <button class="btn icon" id="print-btn" type="button" disabled title="Load a PDF first" aria-label="Print">
+      <i class="ph ph-printer" aria-hidden="true"></i>
+    </button>
     <button class="btn" id="save-template-btn" type="button" disabled title="Load a PDF first">
       <i class="ph ph-bookmark-simple"></i>Save as template
     </button>
@@ -61,6 +67,16 @@
   </header>
 
   <div class="dashboard" id="dashboard-view">
+    <div class="resume-banner" id="resume-banner" hidden>
+      <i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i>
+      <div class="resume-text">
+        <div class="resume-title">Continue where you left off?</div>
+        <div class="resume-sub" id="resume-sub"></div>
+      </div>
+      <button class="btn sm" id="resume-discard-btn" type="button">Discard</button>
+      <button class="btn sm primary" id="resume-btn" type="button">Resume</button>
+    </div>
+
     <div class="dash-head">
       <div>
         <h1 class="h1">Templates</h1>
@@ -88,9 +104,27 @@
     <button class="tool on" id="tool-select" type="button"><i class="ph ph-cursor"></i>Select</button>
     <button class="tool" id="tool-text" type="button"><i class="ph ph-textbox"></i>Text field</button>
     <button class="tool" id="tool-checkbox" type="button" disabled title="Arrives in a later milestone"><i class="ph ph-check-square"></i>Checkbox</button>
-    <button class="tool" id="tool-signature" type="button" disabled title="Arrives in a later milestone"><i class="ph ph-signature"></i>Signature</button>
+    <button class="tool" id="tool-draw" type="button"><i class="ph ph-pencil-simple"></i>Draw</button>
+    <div class="tsep"></div>
+    <button class="tool" id="undo-btn" type="button" disabled title="Nothing to undo"><i class="ph ph-arrow-counter-clockwise"></i>Undo</button>
     <div class="spacer"></div>
     <span class="meta" id="field-count-meta"></span>
+  </div>
+
+  <div class="draw-toolbar" id="draw-toolbar" hidden>
+    <div class="seg" id="draw-shape-seg" role="group" aria-label="Drawing tool">
+      <button type="button" data-shape="select" title="Select / move" aria-label="Select or move a drawing"><i class="ph-bold ph-cursor"></i></button>
+      <button type="button" data-shape="freehand" class="on" title="Freehand" aria-label="Freehand draw"><i class="ph-bold ph-pencil-simple"></i></button>
+      <button type="button" data-shape="arrow" title="Arrow" aria-label="Arrow"><i class="ph-bold ph-arrow-up-right"></i></button>
+      <button type="button" data-shape="rect" title="Box" aria-label="Box"><i class="ph-bold ph-square"></i></button>
+      <button type="button" data-shape="ellipse" title="Circle" aria-label="Circle"><i class="ph-bold ph-circle"></i></button>
+      <button type="button" data-shape="text" title="Text label" aria-label="Text label"><i class="ph-bold ph-text-t"></i></button>
+    </div>
+    <div class="draw-colors" id="draw-colors"></div>
+    <span class="meta" id="draw-hint">Drag on the page to draw</span>
+    <div class="spacer"></div>
+    <button class="btn sm" id="draw-delete-btn" type="button" disabled><i class="ph ph-trash"></i>Delete selected</button>
+    <button class="btn sm danger-ghost" id="draw-clear-btn" type="button"><i class="ph ph-eraser"></i>Clear drawings</button>
   </div>
 
   <div class="split" id="split" hidden>
@@ -103,10 +137,14 @@
           <button id="zoom-in" type="button" aria-label="Zoom in"><i class="ph ph-plus" style="font-size:12px"></i></button>
         </div>
         <span id="paper-size"></span>
+        <button class="rotate-btn" id="rotate-btn" type="button" aria-label="Rotate page 90 degrees">
+          <i class="ph ph-arrow-clockwise"></i>
+        </button>
       </div>
 
       <div class="page-wrap" id="page-wrap" hidden>
         <canvas class="page-canvas" id="page-canvas"></canvas>
+        <canvas class="draw-canvas" id="draw-canvas"></canvas>
         <div class="field-overlay" id="field-overlay"></div>
       </div>
     </div>
@@ -222,8 +260,10 @@
 </div>
 
 <script src="js/field-model.js"></script>
+<script src="js/annotations.js"></script>
 <script src="js/pdf-render.js"></script>
 <script src="js/canvas-editor.js"></script>
+<script src="js/annotation-editor.js"></script>
 <script src="js/pdf-export.js"></script>
 <script src="js/templates-db.js"></script>
 <script src="js/app.js"></script>

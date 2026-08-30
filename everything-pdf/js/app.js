@@ -6,6 +6,10 @@ window.EPDF = window.EPDF || {};
   const FieldModel = EPDF.FieldModel;
   const PdfRender = EPDF.PdfRender;
   const CanvasEditor = EPDF.CanvasEditor;
+  const Annotations = EPDF.Annotations;
+  const AnnotationEditor = EPDF.AnnotationEditor;
+
+  const DRAW_COLORS = ['#e02020', '#e0791f', '#e0c020', '#1a9c50', '#2563eb', '#1c1d1a'];
 
   const $ = (sel) => document.querySelector(sel);
   const els = {};
@@ -34,6 +38,9 @@ window.EPDF = window.EPDF || {};
     viewport: null,
     store: null,
     editor: null,
+    annotationStore: null,
+    annotationEditor: null,
+    pageRotation: 0,       // additional user-applied rotation (0/90/180/270), on top of the page's own
     originalBytes: null,   // pristine ArrayBuffer of the loaded PDF, for pdf-lib export
     originalFileName: '',
     exportMode: 'flatten', // 'flatten' | 'editable'
@@ -64,14 +71,16 @@ window.EPDF = window.EPDF || {};
   function cacheEls() {
     [
       'dashboard-view', 'dash-empty', 'template-grid', 'new-template-btn',
+      'resume-banner', 'resume-sub', 'resume-btn', 'resume-discard-btn',
       'toolbar', 'split',
       'stage', 'dropzone', 'browse-btn', 'file-input',
-      'page-wrap', 'page-canvas', 'field-overlay', 'pagebar', 'page-info', 'paper-size',
-      'zoom-out', 'zoom-in', 'zoom-pct',
+      'page-wrap', 'page-canvas', 'draw-canvas', 'field-overlay', 'pagebar', 'page-info', 'paper-size',
+      'zoom-out', 'zoom-in', 'zoom-pct', 'rotate-btn',
       'docname', 'docname-title', 'doc-sep', 'autosave', 'templates-btn',
-      'theme-toggle', 'save-template-btn', 'reference-btn', 'export-btn',
-      'tool-select', 'tool-text', 'tool-checkbox', 'tool-signature',
+      'theme-toggle', 'fullscreen-btn', 'print-btn', 'save-template-btn', 'reference-btn', 'export-btn',
+      'tool-select', 'tool-text', 'tool-checkbox', 'tool-draw', 'undo-btn',
       'field-count-meta',
+      'draw-toolbar', 'draw-shape-seg', 'draw-colors', 'draw-hint', 'draw-delete-btn', 'draw-clear-btn',
       'export-scrim', 'export-sheet', 'export-title', 'export-field-count',
       'export-filename', 'export-mode-flatten', 'export-mode-editable',
       'export-summary', 'export-cancel', 'export-confirm',
@@ -105,22 +114,31 @@ window.EPDF = window.EPDF || {};
   // Shared by a fresh upload (loadFile) and reopening a saved template
   // (openTemplate) — the only difference is where the bytes/fields come
   // from. presetFields, when given, skips AcroForm auto-detection and
-  // replays the template's saved field layout instead (values blanked).
-  async function loadPdfIntoEditor(buffer, fileName, presetFields) {
+  // replays the template's saved field layout instead (values blanked,
+  // unless opts.preserveValues is set — used when resuming an autosaved
+  // session, where the real in-progress values matter).
+  async function loadPdfIntoEditor(buffer, fileName, presetFields, opts) {
+    opts = opts || {};
     // pdf.js may transfer/detach the buffer it's given, so hand it a copy
     // and keep the pristine original for pdf-lib at export time.
     state.originalBytes = buffer.slice(0);
     state.originalFileName = fileName;
     const pdfDoc = await PdfRender.loadPdf(buffer);
     state.pdfDoc = pdfDoc;
-    state.pageNumber = 1;
+    state.pageNumber = opts.pageNumber || 1;
     state.zoomPercent = loadSavedZoom();
+    state.pageRotation = opts.pageRotation || 0;
     state.store = FieldModel.createStore();
-    state.store.subscribe(() => renderFieldCountMeta(state.store.list()));
+    state.store.subscribe(() => { renderFieldCountMeta(state.store.list()); updateUndoButton(); scheduleAutosave(); });
+    state.annotationStore = Annotations.createStore();
+    state.annotationStore.subscribe(() => { updateUndoButton(); updateDrawDeleteButton(); scheduleAutosave(); });
 
     let detectedCount = 0;
     if (presetFields) {
-      presetFields.forEach((f) => state.store.add({ page: f.page, rect: f.rect, name: f.name, type: f.type, value: '' }));
+      presetFields.forEach((f) => state.store.add({
+        page: f.page, rect: f.rect, name: f.name, type: f.type,
+        value: opts.preserveValues ? (f.value || '') : '',
+      }));
     } else {
       // Auto-import any real, already-embedded AcroForm fields so the user
       // can click and type immediately instead of drawing every field by
@@ -131,6 +149,12 @@ window.EPDF = window.EPDF || {};
       detectedCount = detected.length;
     }
     state.store.select(null);
+    if (opts.annotations) opts.annotations.forEach((a) => state.annotationStore.add({ ...a }));
+    // Detected/preset/restored fields and annotations all go through
+    // add(), which pushes undo history same as a user action — but the
+    // user hasn't done anything yet at this point, so start clean.
+    state.store.clearUndoHistory();
+    state.annotationStore.clearUndoHistory();
 
     showEditor();
     els.docname.hidden = false;
@@ -150,6 +174,16 @@ window.EPDF = window.EPDF || {};
       store: state.store,
       getViewport: () => state.viewport,
     });
+
+    if (state.annotationEditor) state.annotationEditor.destroy();
+    state.annotationEditor = AnnotationEditor.create({
+      canvasEl: els.drawCanvas,
+      store: state.annotationStore,
+      getViewport: () => state.viewport,
+      getPageNumber: () => state.pageNumber,
+    });
+    state.annotationEditor.setColor(DRAW_COLORS[0]);
+
     setTool('select');
 
     // Only reveal the stage (and let the editor's pointer listeners see
@@ -165,12 +199,19 @@ window.EPDF = window.EPDF || {};
     els.referenceBtn.title = '';
     els.saveTemplateBtn.disabled = false;
     els.saveTemplateBtn.title = '';
+    els.printBtn.disabled = false;
+    els.printBtn.title = '';
+    els.fullscreenBtn.disabled = false;
+    els.fullscreenBtn.title = '';
     renderFieldCountMeta(state.store.list());
+    updateUndoButton();
+    updateDrawDeleteButton();
   }
 
   async function loadFile(file) {
     const buffer = await file.arrayBuffer();
     state.currentTemplateId = null;
+    await EPDF.TemplatesDb.clearSession().catch((err) => console.error(err)); // starting fresh — any stale resumable session no longer applies
     await loadPdfIntoEditor(buffer, file.name.replace(/\.pdf$/i, ''), null);
   }
 
@@ -179,25 +220,176 @@ window.EPDF = window.EPDF || {};
     const { page, viewport } = await PdfRender.renderPage(state.pdfDoc, state.pageNumber, els.pageCanvas, {
       targetCssWidth,
       zoomPercent: state.zoomPercent,
+      rotation: state.pageRotation,
     });
     state.viewport = viewport;
     els.pageWrap.style.width = Math.floor(viewport.width) + 'px';
     els.pageWrap.style.height = Math.floor(viewport.height) + 'px';
 
     els.pageInfo.textContent = `Page ${state.pageNumber} of ${state.pdfDoc.numPages}`;
-    const unscaled = page.getViewport({ scale: 1 });
+    const unscaled = page.getViewport({ scale: 1, rotation: (page.rotate + state.pageRotation) % 360 });
     els.paperSize.textContent = paperSizeLabel(unscaled.width, unscaled.height);
     els.zoomPct.textContent = state.zoomPercent + '%';
 
     if (state.editor) state.editor.layout();
+    if (state.annotationEditor) state.annotationEditor.layout();
+  }
+
+  function rotatePage() {
+    state.pageRotation = (state.pageRotation + 90) % 360;
+    rerenderPage();
+    scheduleAutosave();
+  }
+
+  // ── autosave / resume-in-progress-work ───────────────────────────
+
+  let autosaveTimer = null;
+
+  function scheduleAutosave() {
+    if (!state.pdfDoc) return;
+    if (autosaveTimer) clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(saveSessionNow, 800);
+  }
+
+  async function saveSessionNow() {
+    if (!state.pdfDoc || !state.originalBytes) return;
+    try {
+      await EPDF.TemplatesDb.saveSession({
+        originalBytes: state.originalBytes,
+        originalFileName: state.originalFileName,
+        currentTemplateId: state.currentTemplateId,
+        pageNumber: state.pageNumber,
+        pageRotation: state.pageRotation,
+        fields: state.store ? state.store.list() : [],
+        annotations: state.annotationStore ? state.annotationStore.list() : [],
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  function timeAgo(ts) {
+    const s = Math.max(1, Math.floor((Date.now() - ts) / 1000));
+    if (s < 60) return 'just now';
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
+    const d = Math.floor(h / 24);
+    return `${d} day${d === 1 ? '' : 's'} ago`;
+  }
+
+  async function checkResumableSession() {
+    try {
+      const session = await EPDF.TemplatesDb.loadSession();
+      els.resumeBanner.hidden = !session;
+      if (session) {
+        els.resumeSub.textContent = `${session.originalFileName || 'Untitled'} — ${timeAgo(session.updatedAt)}`;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function resumeSession() {
+    const session = await EPDF.TemplatesDb.loadSession();
+    if (!session) return;
+    state.currentTemplateId = session.currentTemplateId || null;
+    await loadPdfIntoEditor(session.originalBytes.slice(0), session.originalFileName, session.fields, {
+      preserveValues: true,
+      annotations: session.annotations,
+      pageRotation: session.pageRotation,
+      pageNumber: session.pageNumber,
+    });
+    els.resumeBanner.hidden = true;
+  }
+
+  async function discardSession() {
+    await EPDF.TemplatesDb.clearSession();
+    els.resumeBanner.hidden = true;
   }
 
   // ── toolbar ─────────────────────────────────────────────────────
 
   function setTool(tool) {
-    if (state.editor) state.editor.setTool(tool);
+    // 'draw' is handled entirely by the annotation editor on its own canvas
+    // layer — canvas-editor only ever sees 'select'/'draw-text', so it's
+    // told 'select' whenever draw mode is active (keeps its own gestures
+    // idle without needing it to know a third tool exists).
+    if (state.editor) state.editor.setTool(tool === 'draw' ? 'select' : tool);
     els.toolSelect.classList.toggle('on', tool === 'select');
     els.toolText.classList.toggle('on', tool === 'draw-text');
+    els.toolDraw.classList.toggle('on', tool === 'draw');
+    els.fieldOverlay.classList.toggle('tool-draw', tool === 'draw');
+    els.drawToolbar.hidden = tool !== 'draw';
+    if (state.annotationEditor) state.annotationEditor.setActive(tool === 'draw');
+  }
+
+  // ── draw tool (freehand/shape annotations) ──────────────────────
+
+  function wireDrawToolbar() {
+    els.toolDraw.addEventListener('click', () => setTool('draw'));
+
+    els.drawShapeSeg.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-shape]');
+      if (!btn) return;
+      const shape = btn.dataset.shape;
+      els.drawShapeSeg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn));
+      if (state.annotationEditor) state.annotationEditor.setShape(shape);
+      const hints = {
+        select: 'Click a drawing to select it — drag to move, Delete to remove',
+        freehand: 'Drag on the page to draw',
+        arrow: 'Drag to draw an arrow',
+        rect: 'Drag to draw a box',
+        ellipse: 'Drag to draw a circle',
+        text: 'Click on the page to place a text label',
+      };
+      els.drawHint.textContent = hints[shape] || '';
+    });
+
+    DRAW_COLORS.forEach((color, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.style.background = color;
+      b.className = i === 0 ? 'on' : '';
+      b.setAttribute('aria-label', 'Drawing color');
+      b.addEventListener('click', () => {
+        els.drawColors.querySelectorAll('button').forEach((btn) => btn.classList.toggle('on', btn === b));
+        if (state.annotationEditor) state.annotationEditor.setColor(color);
+      });
+      els.drawColors.appendChild(b);
+    });
+
+    els.drawDeleteBtn.addEventListener('click', () => {
+      if (!state.annotationStore) return;
+      const selected = state.annotationStore.getSelected();
+      if (selected) state.annotationStore.remove(selected.id);
+    });
+
+    els.drawClearBtn.addEventListener('click', () => {
+      if (!state.annotationStore) return;
+      state.annotationStore.clear(state.pageNumber);
+    });
+  }
+
+  function updateDrawDeleteButton() {
+    const selected = state.annotationStore && state.annotationStore.getSelected();
+    els.drawDeleteBtn.disabled = !selected;
+  }
+
+  // ── unified undo (fields + drawings share one button/history) ────
+
+  function updateUndoButton() {
+    const canUndo = (state.store && state.store.canUndo()) || (state.annotationStore && state.annotationStore.canUndo());
+    els.undoBtn.disabled = !canUndo;
+  }
+
+  function performUndo() {
+    const fieldTs = state.store ? state.store.lastUndoTimestamp() : 0;
+    const annTs = state.annotationStore ? state.annotationStore.lastUndoTimestamp() : 0;
+    if (!fieldTs && !annTs) return;
+    if (annTs > fieldTs) state.annotationStore.undo();
+    else state.store.undo();
   }
 
   function changeZoom(delta) {
@@ -218,17 +410,26 @@ window.EPDF = window.EPDF || {};
   // ── dashboard / templates ──────────────────────────────────────────
 
   function showDashboard() {
+    // Leaving an active edit (not the initial page-load call, which never
+    // has a pdfDoc yet) means the user is deliberately walking away from a
+    // one-off edit — same "nothing persists" rule that already applies to
+    // its in-memory field/annotation state applies to the autosaved copy.
+    const wasEditing = !!state.pdfDoc;
     state.view = 'dashboard';
     state.currentTemplateId = null;
     if (state.editor) { state.editor.destroy(); state.editor = null; }
+    if (state.annotationEditor) { state.annotationEditor.destroy(); state.annotationEditor = null; }
     state.pdfDoc = null;
     state.store = null;
+    state.annotationStore = null;
+    state.pageRotation = 0;
     if (state.referencePhotoUrl) { URL.revokeObjectURL(state.referencePhotoUrl); state.referencePhotoUrl = null; }
     els.refPanel.hidden = true;
     els.referenceBtn.classList.remove('active');
 
     els.dashboardView.hidden = false;
     els.toolbar.hidden = true;
+    els.drawToolbar.hidden = true;
     els.split.hidden = true;
     els.docname.hidden = true;
     els.docSep.hidden = true;
@@ -240,7 +441,16 @@ window.EPDF = window.EPDF || {};
     els.exportBtn.title = 'Load a PDF first';
     els.saveTemplateBtn.disabled = true;
     els.saveTemplateBtn.title = 'Load a PDF first';
+    els.printBtn.disabled = true;
+    els.printBtn.title = 'Load a PDF first';
+    els.fullscreenBtn.disabled = true;
+    els.fullscreenBtn.title = 'Load a PDF first';
     renderTemplateGrid();
+    if (wasEditing) {
+      EPDF.TemplatesDb.clearSession().then(checkResumableSession).catch((err) => console.error(err));
+    } else {
+      checkResumableSession();
+    }
   }
 
   function showEditor() {
@@ -320,6 +530,7 @@ window.EPDF = window.EPDF || {};
     const srcPdf = await EPDF.TemplatesDb.loadSourcePdf(record.sourcePdfId);
     if (!srcPdf) return;
     state.currentTemplateId = record.id;
+    await EPDF.TemplatesDb.clearSession().catch((err) => console.error(err)); // starting fresh — any stale resumable session no longer applies
     await loadPdfIntoEditor(srcPdf.bytes.slice(0), record.name, record.fields);
   }
 
@@ -412,6 +623,8 @@ window.EPDF = window.EPDF || {};
   function wireDashboard() {
     els.templatesBtn.addEventListener('click', showDashboard);
     els.newTemplateBtn.addEventListener('click', () => els.fileInput.click());
+    els.resumeBtn.addEventListener('click', resumeSession);
+    els.resumeDiscardBtn.addEventListener('click', discardSession);
     els.templateGrid.addEventListener('click', (e) => {
       const delBtn = e.target.closest('[data-delete-id]');
       if (delBtn) { openConfirmDelete(delBtn.dataset.deleteId); return; }
@@ -467,11 +680,21 @@ window.EPDF = window.EPDF || {};
   function wireToolbar() {
     els.toolSelect.addEventListener('click', () => setTool('select'));
     els.toolText.addEventListener('click', () => setTool('draw-text'));
+    els.undoBtn.addEventListener('click', performUndo);
+    document.addEventListener('keydown', (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || e.shiftKey) return;
+      const active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return; // let native input undo run
+      if (els.undoBtn.disabled) return;
+      e.preventDefault();
+      performUndo();
+    });
   }
 
   function wireZoom() {
     els.zoomOut.addEventListener('click', () => changeZoom(-8));
     els.zoomIn.addEventListener('click', () => changeZoom(8));
+    els.rotateBtn.addEventListener('click', rotatePage);
   }
 
   function wireResize() {
@@ -530,19 +753,72 @@ window.EPDF = window.EPDF || {};
     setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 200);
   }
 
-  async function confirmExport() {
+  // ── print / fullscreen ─────────────────────────────────────────
+
+  function printPdf() {
+    if (!state.pdfDoc) return;
+    // Open the tab synchronously, inside the click's own call stack — if we
+    // waited for buildExportBytes() (async) first, some browsers drop the
+    // "user gesture" context by the time window.open() runs and silently
+    // block it as a popup.
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.title = 'Preparing to print…';
+    buildExportBytes().then((bytes) => {
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      win.location.href = url;
+      win.addEventListener('load', () => { win.focus(); win.print(); });
+    }).catch((err) => {
+      console.error(err);
+      win.close();
+    });
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch((err) => console.error(err));
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  function wireFullscreen() {
+    els.fullscreenBtn.addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', () => {
+      const active = !!document.fullscreenElement;
+      els.fullscreenBtn.querySelector('i').className = active ? 'ph ph-arrows-in' : 'ph ph-arrows-out';
+    });
+  }
+
+  function currentAnnotations() {
+    return state.annotationStore ? state.annotationStore.list() : [];
+  }
+
+  function currentRotation() {
+    return { page: state.pageNumber, degrees: state.pageRotation };
+  }
+
+  async function buildExportBytes() {
     const fields = state.store ? state.store.list() : [];
+    const annotations = currentAnnotations();
+    const rotation = currentRotation();
+    return state.exportMode === 'editable'
+      ? EPDF.PdfExport.exportEditable(state.originalBytes, fields, annotations, rotation)
+      : EPDF.PdfExport.flattenAndExport(state.originalBytes, fields, annotations, rotation);
+  }
+
+  async function confirmExport() {
     let filename = (els.exportFilename.value || '').trim() || 'export';
     if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
 
     els.exportConfirm.disabled = true;
     try {
-      const bytes = state.exportMode === 'editable'
-        ? await EPDF.PdfExport.exportEditable(state.originalBytes, fields)
-        : await EPDF.PdfExport.flattenAndExport(state.originalBytes, fields);
+      const bytes = await buildExportBytes();
       triggerDownload(bytes, filename);
       closeExportSheet();
       flashAutosave('<i class="ph ph-check-circle"></i>Exported');
+      EPDF.TemplatesDb.clearSession().catch((err) => console.error(err)); // work is safely out as a real file now
     } catch (err) {
       console.error(err);
       els.exportFieldCount.textContent = `Export failed: ${err && err.message ? err.message : 'unknown error'}`;
@@ -552,6 +828,7 @@ window.EPDF = window.EPDF || {};
   }
 
   function wireExportSheet() {
+    els.printBtn.addEventListener('click', printPdf);
     els.exportBtn.addEventListener('click', openExportSheet);
     els.exportCancel.addEventListener('click', closeExportSheet);
     els.exportScrim.addEventListener('click', closeExportSheet);
@@ -686,6 +963,8 @@ window.EPDF = window.EPDF || {};
     wireExportSheet();
     wireReferencePanel();
     wireDashboard();
+    wireDrawToolbar();
+    wireFullscreen();
     EPDFTheme.wireToggleButton(els.themeToggle);
     showDashboard();
   });

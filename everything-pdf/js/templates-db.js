@@ -8,9 +8,13 @@ window.EPDF = window.EPDF || {};
 
 EPDF.TemplatesDb = (function () {
   const DB_NAME = 'everything_pdf';
-  const DB_VERSION = 1;
+  // v2 adds the `session` store (autosaved in-progress work) — existing
+  // `templates`/`sourcePdfs` data survives the upgrade untouched, since
+  // onupgradeneeded only ever adds stores it finds missing.
+  const DB_VERSION = 2;
   const STORE_TEMPLATES = 'templates';
   const STORE_SOURCE_PDFS = 'sourcePdfs';
+  const STORE_SESSION = 'session';
 
   function openDb() {
     return new Promise((resolve, reject) => {
@@ -22,6 +26,9 @@ EPDF.TemplatesDb = (function () {
         }
         if (!db.objectStoreNames.contains(STORE_SOURCE_PDFS)) {
           db.createObjectStore(STORE_SOURCE_PDFS, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(STORE_SESSION)) {
+          db.createObjectStore(STORE_SESSION, { keyPath: 'id' });
         }
       };
       req.onsuccess = () => resolve(req.result);
@@ -118,5 +125,45 @@ EPDF.TemplatesDb = (function () {
     });
   }
 
-  return { saveTemplate, loadTemplate, listTemplates, deleteTemplate, storeSourcePdf, loadSourcePdf };
+  // ── session store — autosaved in-progress work (one slot, key 'current')
+  // Record shape: { id:'current', originalBytes, originalFileName,
+  //   currentTemplateId, pageNumber, pageRotation, fields, annotations,
+  //   updatedAt }. Distinct from a template: values are real (not blanked),
+  // and there's only ever one, since the editor only ever holds one PDF.
+
+  async function saveSession(record) {
+    const db = await openDb();
+    const full = { ...record, id: 'current', updatedAt: Date.now() };
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_SESSION, 'readwrite');
+      tx.objectStore(STORE_SESSION).put(full);
+      tx.oncomplete = () => resolve(full);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function loadSession() {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_SESSION, 'readonly');
+      const req = tx.objectStore(STORE_SESSION).get('current');
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function clearSession() {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_SESSION, 'readwrite');
+      tx.objectStore(STORE_SESSION).delete('current');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  return {
+    saveTemplate, loadTemplate, listTemplates, deleteTemplate, storeSourcePdf, loadSourcePdf,
+    saveSession, loadSession, clearSession,
+  };
 })();

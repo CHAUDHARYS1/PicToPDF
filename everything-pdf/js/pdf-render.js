@@ -12,8 +12,8 @@ EPDF.PdfRender = (function () {
     return loadingTask.promise;
   }
 
-  function computeFitScale(page, targetCssWidth) {
-    const unscaled = page.getViewport({ scale: 1 });
+  function computeFitScale(page, targetCssWidth, rotation) {
+    const unscaled = page.getViewport({ scale: 1, rotation });
     return targetCssWidth / unscaled.width;
   }
 
@@ -37,11 +37,15 @@ EPDF.PdfRender = (function () {
   }
 
   async function doRenderPage(pdfDoc, pageNumber, canvasEl, opts) {
-    const { targetCssWidth, zoomPercent = 100 } = opts;
+    const { targetCssWidth, zoomPercent = 100, rotation = 0 } = opts;
     const page = await pdfDoc.getPage(pageNumber);
-    const fitScale = computeFitScale(page, targetCssWidth);
+    // `rotation` is the user's additional turn on top of whatever the page's
+    // own embedded rotation already is — getViewport's `rotation` is
+    // absolute, not additive, so the two have to be combined here.
+    const effectiveRotation = ((page.rotate + rotation) % 360 + 360) % 360;
+    const fitScale = computeFitScale(page, targetCssWidth, effectiveRotation);
     const scale = fitScale * (zoomPercent / 100);
-    const viewport = page.getViewport({ scale });
+    const viewport = page.getViewport({ scale, rotation: effectiveRotation });
 
     const outputScale = window.devicePixelRatio || 1;
     canvasEl.width = Math.floor(viewport.width * outputScale);
@@ -111,6 +115,12 @@ EPDF.PdfRender = (function () {
     return { x, y };
   }
 
+  /** The reverse of screenPointToPdf — a single PDF point -> CSS point. */
+  function pdfPointToScreen(viewport, x, y) {
+    const [sx, sy] = viewport.convertToViewportPoint(x, y);
+    return { x: sx, y: sy };
+  }
+
   /**
    * Maps one pdf.js widget annotation to a partial field-model object
    * ({page, rect, name, type, value}), or null if it isn't a data field
@@ -145,10 +155,8 @@ EPDF.PdfRender = (function () {
       // No dropdown/select type yet — import the current value as text.
       type = 'text';
       value = Array.isArray(annotation.fieldValue) ? (annotation.fieldValue[0] || '') : (annotation.fieldValue || '');
-    } else if (annotation.fieldType === 'Sig') {
-      type = 'signature';
     } else {
-      return null;
+      return null; // includes 'Sig' — signature fields aren't a supported type
     }
 
     return { page: pageNumber, rect, name: annotation.fieldName || 'Field', type, value };
@@ -202,7 +210,7 @@ EPDF.PdfRender = (function () {
   }
 
   return {
-    loadPdf, renderPage, computeFitScale, rectToScreen, screenToRect, screenPointToPdf,
+    loadPdf, renderPage, computeFitScale, rectToScreen, screenToRect, screenPointToPdf, pdfPointToScreen,
     detectFormFields, renderThumbnail,
   };
 })();
