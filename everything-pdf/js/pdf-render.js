@@ -22,7 +22,21 @@ EPDF.PdfRender = (function () {
    * target CSS width and zoom percentage. Returns the CSS-pixel viewport,
    * which is what all screen<->PDF conversions below must use.
    */
-  async function renderPage(pdfDoc, pageNumber, canvasEl, opts) {
+  function renderPage(pdfDoc, pageNumber, canvasEl, opts) {
+    // pdf.js throws if a second render() starts on a canvas before the
+    // previous one has fully settled. Concurrent callers (a fast zoom click,
+    // or the reference panel toggle, each of which triggers a render) can
+    // both pass that check before either has started painting, so the guard
+    // has to serialize actual execution per canvas, not just cancel-in-place.
+    const previous = canvasEl._epdfRenderQueue || Promise.resolve();
+    const thisRender = previous.catch(() => {}).then(() =>
+      doRenderPage(pdfDoc, pageNumber, canvasEl, opts)
+    );
+    canvasEl._epdfRenderQueue = thisRender;
+    return thisRender;
+  }
+
+  async function doRenderPage(pdfDoc, pageNumber, canvasEl, opts) {
     const { targetCssWidth, zoomPercent = 100 } = opts;
     const page = await pdfDoc.getPage(pageNumber);
     const fitScale = computeFitScale(page, targetCssWidth);
@@ -37,7 +51,17 @@ EPDF.PdfRender = (function () {
 
     const ctx = canvasEl.getContext('2d');
     const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
-    await page.render({ canvasContext: ctx, transform, viewport }).promise;
+    // Our own field-overlay is the only UI for every field (hand-drawn or
+    // detected), so suppress pdf.js's native annotation rendering — a real
+    // AcroForm widget with a saved value has its own appearance stream,
+    // which would otherwise get baked onto the canvas underneath our
+    // overlay text and show as ghosted double-vision.
+    await page.render({
+      canvasContext: ctx,
+      transform,
+      viewport,
+      annotationMode: pdfjsLib.AnnotationMode.DISABLE,
+    }).promise;
 
     return { page, viewport };
   }
@@ -87,5 +111,70 @@ EPDF.PdfRender = (function () {
     return { x, y };
   }
 
-  return { loadPdf, renderPage, computeFitScale, rectToScreen, screenToRect, screenPointToPdf };
+  /**
+   * Maps one pdf.js widget annotation to a partial field-model object
+   * ({page, rect, name, type, value}), or null if it isn't a data field
+   * we can represent (e.g. a plain push button). The annotation's raw
+   * .rect is already in the same native/unrotated PDF-space rectToScreen
+   * expects — verified empirically against a rotated test PDF — so no
+   * transform is needed here beyond normalizing the two corners.
+   */
+  function mapAnnotationToField(annotation, pageNumber) {
+    const [x1, y1, x2, y2] = annotation.rect;
+    const rect = {
+      x: Math.min(x1, x2),
+      y: Math.min(y1, y2),
+      w: Math.abs(x2 - x1),
+      h: Math.abs(y2 - y1),
+    };
+    if (rect.w <= 0 || rect.h <= 0) return null;
+
+    let type;
+    let value = '';
+    if (annotation.fieldType === 'Tx') {
+      type = 'text';
+      value = annotation.fieldValue || '';
+    } else if (annotation.fieldType === 'Btn' && (annotation.checkBox || annotation.radioButton)) {
+      // Radio buttons have no group concept in our model yet — imported as
+      // independent checkboxes, a disclosed simplification.
+      type = 'checkbox';
+      value = annotation.fieldValue && annotation.fieldValue !== 'Off' ? 'true' : '';
+    } else if (annotation.fieldType === 'Btn') {
+      return null; // plain push button, not a data field
+    } else if (annotation.fieldType === 'Ch') {
+      // No dropdown/select type yet — import the current value as text.
+      type = 'text';
+      value = Array.isArray(annotation.fieldValue) ? (annotation.fieldValue[0] || '') : (annotation.fieldValue || '');
+    } else if (annotation.fieldType === 'Sig') {
+      type = 'signature';
+    } else {
+      return null;
+    }
+
+    return { page: pageNumber, rect, name: annotation.fieldName || 'Field', type, value };
+  }
+
+  /** Scans every page of pdfDoc for real, already-embedded AcroForm widget
+   *  fields and returns them as partial field-model objects ready for
+   *  store.add(). Returns [] for a PDF with no such fields — this only
+   *  detects fields that genuinely exist, never guesses from blank space. */
+  async function detectFormFields(pdfDoc) {
+    const fields = [];
+    for (let p = 1; p <= pdfDoc.numPages; p++) {
+      const page = await pdfDoc.getPage(p);
+      const annotations = await page.getAnnotations({ intent: 'display' });
+      annotations
+        .filter((a) => a.subtype === 'Widget' && a.fieldType)
+        .forEach((a) => {
+          const field = mapAnnotationToField(a, p);
+          if (field) fields.push(field);
+        });
+    }
+    return fields;
+  }
+
+  return {
+    loadPdf, renderPage, computeFitScale, rectToScreen, screenToRect, screenPointToPdf,
+    detectFormFields,
+  };
 })();

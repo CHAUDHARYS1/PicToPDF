@@ -1,4 +1,4 @@
-/* Everything PDF — app wiring: DOM refs, file loading, right-panel rendering.
+/* Everything PDF — app wiring: DOM refs, file loading, toolbar/export sheet.
    The only file that touches `document` at top level (DOMContentLoaded). */
 window.EPDF = window.EPDF || {};
 
@@ -17,6 +17,11 @@ window.EPDF = window.EPDF || {};
     viewport: null,
     store: null,
     editor: null,
+    originalBytes: null,   // pristine ArrayBuffer of the loaded PDF, for pdf-lib export
+    originalFileName: '',
+    exportMode: 'flatten', // 'flatten' | 'editable'
+    referencePhotoUrl: null, // object URL of the currently loaded reference photo, or null
+    refView: { scale: 1, rotation: 0, tx: 0, ty: 0 },
   };
 
   const PAPER_SIZES = [
@@ -46,7 +51,13 @@ window.EPDF = window.EPDF || {};
       'reference-btn', 'export-btn',
       'tool-select', 'tool-text', 'tool-checkbox', 'tool-signature',
       'field-count-meta',
-      'flist', 'totals-block', 'inspector',
+      'export-scrim', 'export-sheet', 'export-title', 'export-field-count',
+      'export-filename', 'export-mode-flatten', 'export-mode-editable',
+      'export-summary', 'export-cancel', 'export-confirm',
+      'ref-panel', 'ref-replace-btn', 'ref-popout-btn', 'ref-close-btn',
+      'ref-photo', 'ref-photo-placeholder', 'ref-photo-img', 'ref-zoomctl',
+      'ref-zoom-out', 'ref-zoom-in', 'ref-rotate', 'ref-fit',
+      'ref-scratch', 'ref-copy-btn', 'ref-file-input',
     ].forEach((id) => { els[toCamel(id)] = document.getElementById(id); });
   }
 
@@ -58,17 +69,34 @@ window.EPDF = window.EPDF || {};
 
   async function loadFile(file) {
     const buffer = await file.arrayBuffer();
+    // pdf.js may transfer/detach the buffer it's given, so hand it a copy
+    // and keep the pristine original for pdf-lib at export time.
+    state.originalBytes = buffer.slice(0);
+    state.originalFileName = file.name.replace(/\.pdf$/i, '');
     const pdfDoc = await PdfRender.loadPdf(buffer);
     state.pdfDoc = pdfDoc;
     state.pageNumber = 1;
     state.zoomPercent = 100;
     state.store = FieldModel.createStore();
-    state.store.subscribe(renderRightPanel);
+    state.store.subscribe(() => renderFieldCountMeta(state.store.list()));
+
+    // Auto-import any real, already-embedded AcroForm fields so the user
+    // can click and type immediately instead of drawing every field by
+    // hand. Detected fields behave identically to hand-drawn ones from
+    // here on — same model, same validation, same rendering.
+    const detected = await PdfRender.detectFormFields(pdfDoc);
+    detected.forEach((f) => state.store.add(f));
+    state.store.select(null);
 
     els.docname.hidden = false;
     els.docSep.hidden = false;
-    els.docnameTitle.textContent = file.name.replace(/\.pdf$/i, '');
+    els.docnameTitle.textContent = state.originalFileName;
     els.autosave.hidden = false;
+    if (detected.length) {
+      const defaultAutosaveText = els.autosave.innerHTML;
+      els.autosave.innerHTML = `<i class="ph ph-magic-wand"></i>Detected ${detected.length} existing field${detected.length === 1 ? '' : 's'}`;
+      setTimeout(() => { els.autosave.innerHTML = defaultAutosaveText; }, 3000);
+    }
 
     if (state.editor) state.editor.destroy();
     els.fieldOverlay.innerHTML = '';
@@ -87,7 +115,11 @@ window.EPDF = window.EPDF || {};
     els.dropzone.hidden = true;
     els.pageWrap.hidden = false;
     els.pagebar.hidden = false;
-    renderRightPanel({ fields: [], selectedId: null });
+    els.exportBtn.disabled = false;
+    els.exportBtn.title = '';
+    els.referenceBtn.disabled = false;
+    els.referenceBtn.title = '';
+    renderFieldCountMeta(state.store.list());
   }
 
   async function rerenderPage() {
@@ -121,209 +153,13 @@ window.EPDF = window.EPDF || {};
     rerenderPage();
   }
 
-  // ── right panel: fields list + inspector + totals ──────────────
-
-  function renderRightPanel() {
-    if (!state.store) return;
-    const fields = state.store.list();
-    const selected = state.store.getSelected();
-
-    renderFieldCountMeta(fields);
-    renderFieldsList(fields, selected);
-    renderTotalsBlock(fields);
-    renderInspector(selected, fields);
-  }
+  // ── toolbar field-count readout ─────────────────────────────────
 
   function renderFieldCountMeta(fields) {
     const filled = fields.filter((f) => f.value).length;
     els.fieldCountMeta.textContent = fields.length
       ? `${fields.length} field${fields.length === 1 ? '' : 's'} · ${filled} filled`
       : '';
-  }
-
-  function typeTagLabel(field) {
-    if (field.behavior === 'total') return 'Auto';
-    return field.type === 'number' ? 'Number'
-      : field.type === 'checkbox' ? 'Checkbox'
-      : field.type === 'signature' ? 'Signature'
-      : field.type === 'date' ? 'Date'
-      : 'Text';
-  }
-
-  function renderFieldsList(fields, selected) {
-    els.flist.innerHTML = '';
-    if (!fields.length) {
-      const empty = document.createElement('div');
-      empty.className = 'flist-empty';
-      empty.textContent = 'No fields yet — pick "Text field" and drag on the page to place one.';
-      els.flist.appendChild(empty);
-      return;
-    }
-    fields.forEach((field) => {
-      const item = document.createElement('div');
-      item.className = 'fitem' + (selected && selected.id === field.id ? ' on' : '');
-      item.innerHTML = `
-        <i class="ph ph-dots-six-vertical grip"></i>
-        <span class="nm"></span>
-        <span class="tag${field.type === 'number' ? ' n' : ''}"></span>
-      `;
-      item.querySelector('.nm').textContent = field.name;
-      item.querySelector('.tag').textContent = typeTagLabel(field);
-      item.addEventListener('click', () => state.store.select(field.id));
-      els.flist.appendChild(item);
-    });
-  }
-
-  function renderTotalsBlock(fields) {
-    els.totalsBlock.innerHTML = '';
-    const totals = fields.filter((f) => f.behavior === 'total');
-    if (!totals.length) return; // brief's critical rule: no numeric config, no math shown
-
-    totals.forEach((total) => {
-      const contributors = fields.filter((f) => f.targetTotalId === total.id);
-      const group = document.createElement('div');
-      group.className = 'fgroup';
-      const gl = document.createElement('div');
-      gl.className = 'gl';
-      gl.textContent = `${total.name} · live`;
-      group.appendChild(gl);
-
-      contributors.forEach((c) => {
-        const row = document.createElement('div');
-        row.className = 'frowck';
-        row.innerHTML = `<span class="chk on"></span><span class="nm"></span><span class="v"></span>`;
-        row.querySelector('.nm').textContent = c.name;
-        row.querySelector('.v').textContent = (parseFloat(c.value) || 0).toFixed(2);
-        group.appendChild(row);
-      });
-
-      const sum = document.createElement('div');
-      sum.className = 'sumline';
-      sum.innerHTML = `<span>Total</span><span class="v"></span>`;
-      sum.querySelector('.v').textContent = (parseFloat(total.value) || 0).toFixed(2);
-      group.appendChild(sum);
-
-      els.totalsBlock.appendChild(group);
-    });
-  }
-
-  function renderInspector(selected, allFields) {
-    els.inspector.innerHTML = '';
-    if (!selected) {
-      const hint = document.createElement('div');
-      hint.className = 'note';
-      hint.innerHTML = `<i class="ph ph-cursor-click"></i><span>Select a field on the page or in the list to edit its properties.</span>`;
-      els.inspector.appendChild(hint);
-      return;
-    }
-
-    const grid = document.createElement('div');
-    grid.style.display = 'grid';
-    grid.style.gridTemplateColumns = '1fr 1fr';
-    grid.style.gap = '11px';
-
-    const nameProp = document.createElement('div');
-    nameProp.className = 'prop';
-    nameProp.innerHTML = `<span class="pl">Name</span>`;
-    const nameInput = document.createElement('input');
-    nameInput.className = 'inp';
-    nameInput.value = selected.name;
-    nameInput.addEventListener('change', () => {
-      state.store.update(selected.id, { name: nameInput.value || 'Field' });
-    });
-    nameProp.appendChild(nameInput);
-
-    const typeProp = document.createElement('div');
-    typeProp.className = 'prop';
-    typeProp.innerHTML = `<span class="pl">Type</span>`;
-    const typeSelect = document.createElement('select');
-    typeSelect.className = 'inp';
-    FieldModel.TYPES.forEach((t) => {
-      const opt = document.createElement('option');
-      opt.value = t;
-      opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
-      if (t === selected.type) opt.selected = true;
-      typeSelect.appendChild(opt);
-    });
-    typeSelect.addEventListener('change', () => {
-      state.store.update(selected.id, { type: typeSelect.value });
-    });
-    typeProp.appendChild(typeSelect);
-
-    grid.appendChild(nameProp);
-    grid.appendChild(typeProp);
-    els.inspector.appendChild(grid);
-
-    // Behavior — only ever shown for numeric fields, per the brief's
-    // critical rule: plain PDFs must never trigger arithmetic UI.
-    if (selected.type === 'number') {
-      els.inspector.appendChild(buildBehaviorControl(selected, allFields));
-    }
-  }
-
-  function buildBehaviorControl(selected, allFields) {
-    const wrap = document.createElement('div');
-    wrap.className = 'prop';
-    wrap.innerHTML = `<span class="pl">Behavior</span>`;
-
-    const seg = document.createElement('div');
-    seg.className = 'seg';
-
-    const totalCandidates = allFields.filter((f) => f.behavior === 'total' && f.id !== selected.id);
-
-    const options = [
-      { key: 'plain', label: 'Plain' },
-      { key: 'sum', label: 'Sums into total' },
-      { key: 'total', label: 'Is a total' },
-    ];
-    options.forEach((opt) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = opt.label;
-      if (selected.behavior === opt.key) btn.classList.add('on');
-      if (opt.key === 'sum' && !totalCandidates.length && selected.behavior !== 'sum') {
-        btn.disabled = true;
-        btn.title = 'Mark another number field as "Is a total" first.';
-      }
-      btn.addEventListener('click', () => {
-        if (opt.key === 'sum') {
-          const targetId = selected.targetTotalId && totalCandidates.some((c) => c.id === selected.targetTotalId)
-            ? selected.targetTotalId
-            : totalCandidates[0]?.id;
-          if (!targetId) return;
-          state.store.update(selected.id, { behavior: 'sum', targetTotalId: targetId });
-        } else if (opt.key === 'total') {
-          state.store.update(selected.id, { behavior: 'total', targetTotalId: null });
-        } else {
-          state.store.update(selected.id, { behavior: 'plain', targetTotalId: null });
-        }
-      });
-      seg.appendChild(btn);
-    });
-    wrap.appendChild(seg);
-
-    if (selected.behavior === 'sum' && totalCandidates.length > 1) {
-      const targetProp = document.createElement('div');
-      targetProp.className = 'prop';
-      targetProp.style.marginTop = '8px';
-      targetProp.innerHTML = `<span class="pl">Target total</span>`;
-      const targetSelect = document.createElement('select');
-      targetSelect.className = 'inp';
-      totalCandidates.forEach((c) => {
-        const opt = document.createElement('option');
-        opt.value = c.id;
-        opt.textContent = c.name;
-        if (c.id === selected.targetTotalId) opt.selected = true;
-        targetSelect.appendChild(opt);
-      });
-      targetSelect.addEventListener('change', () => {
-        state.store.update(selected.id, { targetTotalId: targetSelect.value });
-      });
-      targetProp.appendChild(targetSelect);
-      wrap.appendChild(targetProp);
-    }
-
-    return wrap;
   }
 
   // ── init ────────────────────────────────────────────────────────
@@ -371,11 +207,209 @@ window.EPDF = window.EPDF || {};
     });
   }
 
+  // ── export sheet ────────────────────────────────────────────────
+
+  function formatBytes(n) {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function setExportMode(mode) {
+    state.exportMode = mode;
+    els.exportModeFlatten.querySelector('.chk').classList.toggle('on', mode === 'flatten');
+    els.exportModeEditable.querySelector('.chk').classList.toggle('on', mode === 'editable');
+  }
+
+  function openExportSheet() {
+    if (!state.pdfDoc || !state.originalBytes) return;
+    const fields = state.store ? state.store.list() : [];
+    const filled = fields.filter((f) => f.value).length;
+    els.exportFieldCount.textContent = fields.length
+      ? `${filled} of ${fields.length} field${fields.length === 1 ? '' : 's'} written into the page.`
+      : 'No fields placed yet — exporting the page as-is.';
+    els.exportFilename.value = `${state.originalFileName || 'export'}-filled`;
+    setExportMode('flatten');
+    els.exportSummary.textContent =
+      `${state.pdfDoc.numPages} page${state.pdfDoc.numPages === 1 ? '' : 's'} · ` +
+      `${els.paperSize.textContent} · est. ${formatBytes(state.originalBytes.byteLength)}`;
+    els.exportScrim.hidden = false;
+    els.exportSheet.hidden = false;
+    els.exportFilename.focus();
+    els.exportFilename.select();
+  }
+  function closeExportSheet() {
+    els.exportScrim.hidden = true;
+    els.exportSheet.hidden = true;
+  }
+
+  function triggerDownload(bytes, filename) {
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 200);
+  }
+
+  async function confirmExport() {
+    const fields = state.store ? state.store.list() : [];
+    let filename = (els.exportFilename.value || '').trim() || 'export';
+    if (!filename.toLowerCase().endsWith('.pdf')) filename += '.pdf';
+
+    els.exportConfirm.disabled = true;
+    try {
+      const bytes = state.exportMode === 'editable'
+        ? await EPDF.PdfExport.exportEditable(state.originalBytes, fields)
+        : await EPDF.PdfExport.flattenAndExport(state.originalBytes, fields);
+      triggerDownload(bytes, filename);
+      closeExportSheet();
+      const prevText = els.autosave.innerHTML;
+      els.autosave.innerHTML = '<i class="ph ph-check-circle"></i>Exported';
+      setTimeout(() => { els.autosave.innerHTML = prevText; }, 2500);
+    } catch (err) {
+      console.error(err);
+      els.exportFieldCount.textContent = `Export failed: ${err && err.message ? err.message : 'unknown error'}`;
+    } finally {
+      els.exportConfirm.disabled = false;
+    }
+  }
+
+  function wireExportSheet() {
+    els.exportBtn.addEventListener('click', openExportSheet);
+    els.exportCancel.addEventListener('click', closeExportSheet);
+    els.exportScrim.addEventListener('click', closeExportSheet);
+    els.exportModeFlatten.addEventListener('click', () => setExportMode('flatten'));
+    els.exportModeEditable.addEventListener('click', () => setExportMode('editable'));
+    els.exportConfirm.addEventListener('click', confirmExport);
+    document.addEventListener('keydown', (e) => {
+      if (els.exportSheet.hidden) return;
+      if (e.key === 'Escape') closeExportSheet();
+    });
+  }
+
+  // ── reference photo panel ────────────────────────────────────────
+
+  function applyRefTransform() {
+    const { scale, rotation, tx, ty } = state.refView;
+    els.refPhotoImg.style.transform = `translate(${tx}px, ${ty}px) rotate(${rotation}deg) scale(${scale})`;
+  }
+
+  function resetRefView() {
+    state.refView = { scale: 1, rotation: 0, tx: 0, ty: 0 };
+    applyRefTransform();
+  }
+
+  function loadReferencePhoto(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    if (state.referencePhotoUrl) URL.revokeObjectURL(state.referencePhotoUrl);
+    state.referencePhotoUrl = URL.createObjectURL(file);
+    els.refPhotoImg.src = state.referencePhotoUrl;
+    els.refPhotoImg.hidden = false;
+    els.refPhotoPlaceholder.hidden = true;
+    els.refZoomctl.hidden = false;
+    els.refPopoutBtn.disabled = false;
+    resetRefView();
+  }
+
+  function openReferencePanel() {
+    els.refPanel.hidden = false;
+    els.referenceBtn.classList.add('active');
+    if (state.pdfDoc) rerenderPage(); // stage width changed, refit the page
+  }
+  function closeReferencePanel() {
+    els.refPanel.hidden = true;
+    els.referenceBtn.classList.remove('active');
+    if (state.pdfDoc) rerenderPage();
+  }
+  function toggleReferencePanel() {
+    if (els.refPanel.hidden) openReferencePanel(); else closeReferencePanel();
+  }
+
+  function wireRefPan() {
+    els.refPhotoImg.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startTx = state.refView.tx;
+      const startTy = state.refView.ty;
+      els.refPhotoImg.classList.add('panning');
+
+      const onMove = (moveEvt) => {
+        state.refView.tx = startTx + (moveEvt.clientX - startX);
+        state.refView.ty = startTy + (moveEvt.clientY - startY);
+        applyRefTransform();
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+        els.refPhotoImg.classList.remove('panning');
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    });
+  }
+
+  function wireReferencePanel() {
+    els.referenceBtn.addEventListener('click', toggleReferencePanel);
+    els.refCloseBtn.addEventListener('click', closeReferencePanel);
+    els.refReplaceBtn.addEventListener('click', () => els.refFileInput.click());
+    els.refPhotoPlaceholder.addEventListener('click', () => els.refFileInput.click());
+    els.refFileInput.addEventListener('change', () => {
+      if (els.refFileInput.files[0]) loadReferencePhoto(els.refFileInput.files[0]);
+    });
+    els.refPopoutBtn.addEventListener('click', () => {
+      if (state.referencePhotoUrl) window.open(state.referencePhotoUrl, '_blank');
+    });
+    els.refZoomIn.addEventListener('click', () => {
+      state.refView.scale = Math.min(6, state.refView.scale * 1.25);
+      applyRefTransform();
+    });
+    els.refZoomOut.addEventListener('click', () => {
+      state.refView.scale = Math.max(0.2, state.refView.scale / 1.25);
+      applyRefTransform();
+    });
+    els.refRotate.addEventListener('click', () => {
+      state.refView.rotation = (state.refView.rotation + 90) % 360;
+      applyRefTransform();
+    });
+    els.refFit.addEventListener('click', resetRefView);
+    wireRefPan();
+
+    ['dragenter', 'dragover'].forEach((evt) => {
+      els.refPhoto.addEventListener(evt, (e) => { e.preventDefault(); els.refPhoto.classList.add('dragover'); });
+    });
+    ['dragleave', 'drop'].forEach((evt) => {
+      els.refPhoto.addEventListener(evt, (e) => { e.preventDefault(); els.refPhoto.classList.remove('dragover'); });
+    });
+    els.refPhoto.addEventListener('drop', (e) => {
+      const file = e.dataTransfer.files[0];
+      if (file) loadReferencePhoto(file);
+    });
+
+    els.refCopyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(els.refScratch.value);
+        const original = els.refCopyBtn.innerHTML;
+        els.refCopyBtn.innerHTML = '<i class="ph-bold ph-check"></i>Copied';
+        setTimeout(() => { els.refCopyBtn.innerHTML = original; }, 1500);
+      } catch (err) {
+        console.error(err);
+      }
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     cacheEls();
     wireDropzone();
     wireToolbar();
     wireZoom();
     wireResize();
+    wireExportSheet();
+    wireReferencePanel();
   });
 })();

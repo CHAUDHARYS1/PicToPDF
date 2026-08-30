@@ -1,12 +1,12 @@
 /* Everything PDF — canvas field editor: overlay rendering + gesture handling.
    Field DOM nodes are cached and updated in place; full rebuilds only happen
-   for structural changes (add/remove/geometry/type/behavior), never for a
-   plain keystroke, so typing never loses cursor position. */
+   for structural changes (add/remove/geometry/type), never for a plain
+   keystroke, so typing never loses cursor position. */
 window.EPDF = window.EPDF || {};
 
 EPDF.CanvasEditor = (function () {
   const PdfRender = EPDF.PdfRender;
-  const DRAG_THRESHOLD = 4; // px — below this, a pointerdown+up on a selected field is a click-to-edit, not a drag
+  const DRAG_THRESHOLD = 4; // px — below this, a pointerdown+up on a field is a click-to-edit, not a drag
   const MIN_DRAG_SIZE = 6; // px — ghost boxes smaller than this on release are discarded as accidental clicks
 
   function create({ overlayEl, store, getViewport }) {
@@ -26,11 +26,6 @@ EPDF.CanvasEditor = (function () {
 
     // ── field DOM node lifecycle ──────────────────────────────────────
 
-    function fieldPlaceholder(field) {
-      if (field.name) return field.name;
-      return field.type === 'number' ? 'Number' : field.type === 'date' ? 'Date' : 'Text';
-    }
-
     function buildNode(field) {
       const el = document.createElement('div');
       el.className = 'fld';
@@ -45,7 +40,7 @@ EPDF.CanvasEditor = (function () {
 
       el.className = 'fld' +
         (field.type === 'number' ? ' num' : '') +
-        (field.behavior === 'total' ? ' total' : '') +
+        (field.type === 'checkbox' ? ' checkbox' : '') +
         (isSelected ? ' active' : '') +
         (!field.value && !isEditing ? ' empty' : '');
 
@@ -57,9 +52,7 @@ EPDF.CanvasEditor = (function () {
         input.type = 'text';
         if (field.type === 'number') input.setAttribute('inputmode', 'decimal');
         input.value = field.value || '';
-        input.readOnly = field.behavior === 'total';
         input.addEventListener('input', () => {
-          // store.update() recomputes any total this field feeds internally.
           store.update(field.id, { value: input.value });
         });
         input.addEventListener('blur', () => {
@@ -88,7 +81,7 @@ EPDF.CanvasEditor = (function () {
         el.appendChild(cb);
       } else {
         const span = document.createElement('span');
-        span.textContent = field.value || fieldPlaceholder(field);
+        span.textContent = field.value || '';
         span.style.overflow = 'hidden';
         span.style.textOverflow = 'ellipsis';
         span.style.whiteSpace = 'nowrap';
@@ -168,7 +161,7 @@ EPDF.CanvasEditor = (function () {
       if (editingFieldId === fieldId) return; // the input already shows what the user typed
       const span = el.querySelector('span');
       if (span) {
-        span.textContent = field.value || fieldPlaceholder(field);
+        span.textContent = field.value || '';
         el.classList.toggle('empty', !field.value);
       }
     }
@@ -249,11 +242,12 @@ EPDF.CanvasEditor = (function () {
 
       if (fieldEl) {
         const fid = fieldEl.dataset.fieldId;
-        if (!selected || selected.id !== fid) {
-          store.select(fid);
-          return;
-        }
-        if (editingFieldId === fid) return; // let the <input> handle its own click/cursor placement
+        if (editingFieldId === fid) return; // already editing — let the <input> handle its own click
+        // Select (if not already) and arm the same gesture: a clean click
+        // enters editing immediately (one click to start typing), while a
+        // click-and-drag beyond the threshold moves the field instead —
+        // whether or not it was selected before this pointerdown.
+        if (!selected || selected.id !== fid) store.select(fid);
         armClickOrDrag(e, fid, fieldEl);
         return;
       }

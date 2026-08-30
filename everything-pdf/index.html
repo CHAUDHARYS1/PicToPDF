@@ -42,10 +42,10 @@
     <span class="autosave" id="autosave" hidden>
       <i class="ph ph-info"></i>Not saved — templates arrive in a later milestone
     </span>
-    <button class="btn" id="reference-btn" type="button" disabled title="Reference photo panel arrives in a later milestone">
+    <button class="btn" id="reference-btn" type="button" disabled title="Load a PDF first">
       <i class="ph ph-image-square"></i>Reference
     </button>
-    <button class="btn primary" id="export-btn" type="button" disabled title="Export arrives in a later milestone">
+    <button class="btn primary" id="export-btn" type="button" disabled title="Load a PDF first">
       <i class="ph-bold ph-export"></i>Export PDF
     </button>
   </header>
@@ -85,18 +85,78 @@
       <input type="file" id="file-input" accept="application/pdf" hidden />
     </div>
 
-    <div class="rpanel">
+    <div class="rpanel" id="ref-panel" hidden>
       <div class="rp-head">
-        <div class="t"><i class="ph ph-list-dashes"></i>Fields</div>
+        <div class="t"><i class="ph ph-image-square"></i>Reference</div>
+        <button class="btn sm" id="ref-replace-btn" type="button"><i class="ph ph-upload-simple"></i>Replace</button>
+        <button class="btn sm icon" id="ref-popout-btn" type="button" aria-label="Open photo in a new tab" disabled>
+          <i class="ph ph-arrow-square-out"></i>
+        </button>
+        <button class="btn sm icon" id="ref-close-btn" type="button" aria-label="Close reference panel">
+          <i class="ph ph-x"></i>
+        </button>
       </div>
       <div class="rp-body">
-        <div class="flist" id="flist"></div>
-        <div id="totals-block"></div>
-        <div class="divide"></div>
-        <div class="eyebrow">Selected field</div>
-        <div id="inspector"></div>
-        <div class="note"><i class="ph ph-info"></i><span>Numeric behavior only appears on fields you mark as numbers, so plain PDFs never trigger math.</span></div>
+        <div class="photo" id="ref-photo">
+          <div class="ph" id="ref-photo-placeholder">
+            <i class="ph ph-camera" aria-hidden="true"></i>
+            Technician's handwritten sheet<br />
+            <span>Drop or click to add a photo</span>
+          </div>
+          <img id="ref-photo-img" alt="Reference photo" hidden />
+          <div class="zoomctl" id="ref-zoomctl" hidden>
+            <button type="button" id="ref-zoom-out" aria-label="Zoom out"><i class="ph ph-magnifying-glass-minus"></i></button>
+            <button type="button" id="ref-zoom-in" aria-label="Zoom in"><i class="ph ph-magnifying-glass-plus"></i></button>
+            <button type="button" id="ref-rotate" aria-label="Rotate"><i class="ph ph-arrow-clockwise"></i></button>
+            <button type="button" id="ref-fit" aria-label="Fit to view"><i class="ph ph-arrows-out"></i></button>
+          </div>
+        </div>
+        <div class="scratch">
+          <div class="sh">
+            <span class="l">Scratch — extracted text</span>
+            <button class="btn sm" id="ref-copy-btn" type="button"><i class="ph ph-copy"></i>Copy</button>
+          </div>
+          <textarea id="ref-scratch" placeholder="Jot down text from the photo here…" spellcheck="false"></textarea>
+          <div class="note"><i class="ph ph-note-pencil"></i><span>Free text. Nothing here is written to the PDF.</span></div>
+        </div>
       </div>
+    </div>
+    <input type="file" id="ref-file-input" accept="image/*" hidden />
+  </div>
+
+  <div class="scrim" id="export-scrim" hidden></div>
+  <div class="sheet" id="export-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="export-title">
+    <div class="sheet-h">
+      <h3 id="export-title">Export PDF</h3>
+      <p class="sub" id="export-field-count" style="font-size:12px;margin-top:4px;"></p>
+    </div>
+    <div class="sheet-b">
+      <div class="prop">
+        <span class="pl">Filename</span>
+        <input type="text" class="inp" id="export-filename" spellcheck="false" />
+      </div>
+      <div class="prop">
+        <span class="pl">Field handling</span>
+        <div class="optrow" id="export-mode-flatten">
+          <span class="chk on"></span>
+          <div><div class="ot">Flatten fields</div><div class="os">Text and signature become part of the page. Nobody can edit or clear them.</div></div>
+        </div>
+        <div class="optrow" id="export-mode-editable">
+          <span class="chk"></span>
+          <div><div class="ot">Keep fields editable</div><div class="os">Stays a fillable PDF.</div></div>
+        </div>
+      </div>
+      <div class="filesize">
+        <i class="ph ph-file-pdf"></i>
+        <span id="export-summary"></span>
+      </div>
+    </div>
+    <div class="sheet-f">
+      <button class="btn" id="export-cancel" type="button">Cancel</button>
+      <button class="btn primary" id="export-confirm" type="button">
+        <i class="ph-bold ph-download-simple" aria-hidden="true"></i>
+        Export
+      </button>
     </div>
   </div>
 
