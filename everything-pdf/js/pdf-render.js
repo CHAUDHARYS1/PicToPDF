@@ -141,25 +141,41 @@ EPDF.PdfRender = (function () {
 
     let type;
     let value = '';
+    let options;
     if (annotation.fieldType === 'Tx') {
       type = 'text';
       value = annotation.fieldValue || '';
-    } else if (annotation.fieldType === 'Btn' && (annotation.checkBox || annotation.radioButton)) {
-      // Radio buttons have no group concept in our model yet — imported as
-      // independent checkboxes, a disclosed simplification.
+    } else if (annotation.fieldType === 'Btn' && annotation.checkBox) {
       type = 'checkbox';
       value = annotation.fieldValue && annotation.fieldValue !== 'Off' ? 'true' : '';
+    } else if (annotation.fieldType === 'Btn' && annotation.radioButton) {
+      // Every option in a radio group shares one fieldName — that becomes
+      // this field's `name`, which is exactly what field-model.js's store
+      // uses to enforce mutual exclusion between them. A given widget's own
+      // fieldValue is the *group's* current selection (same string on every
+      // sibling), not whether THIS widget specifically is the checked one —
+      // that's buttonValue (this widget's own "on" export value), verified
+      // empirically against a hand-built multi-option radio-group PDF.
+      type = 'radio';
+      value = annotation.buttonValue && annotation.buttonValue === annotation.fieldValue ? 'true' : '';
     } else if (annotation.fieldType === 'Btn') {
       return null; // plain push button, not a data field
+    } else if (annotation.fieldType === 'Ch' && Array.isArray(annotation.options) && annotation.options.length) {
+      type = 'select';
+      options = annotation.options.map((o) => ({ value: o.exportValue, label: o.displayValue }));
+      value = Array.isArray(annotation.fieldValue) ? (annotation.fieldValue[0] || '') : (annotation.fieldValue || '');
     } else if (annotation.fieldType === 'Ch') {
-      // No dropdown/select type yet — import the current value as text.
+      // A choice field with no option list to show (rare) — fall back to
+      // importing its current value as plain text rather than dropping it.
       type = 'text';
       value = Array.isArray(annotation.fieldValue) ? (annotation.fieldValue[0] || '') : (annotation.fieldValue || '');
     } else {
       return null; // includes 'Sig' — signature fields aren't a supported type
     }
 
-    return { page: pageNumber, rect, name: annotation.fieldName || 'Field', type, value };
+    const field = { page: pageNumber, rect, name: annotation.fieldName || 'Field', type, value };
+    if (options) field.options = options;
+    return field;
   }
 
   /** Scans every page of pdfDoc for real, already-embedded AcroForm widget
@@ -209,8 +225,32 @@ EPDF.PdfRender = (function () {
     }
   }
 
+  /**
+   * Renders `pageNumber` of an already-open pdfDoc to a small PNG data URL,
+   * for the page-navigator sidebar. Unlike renderThumbnail() above, this
+   * reuses the live document instead of reloading it from bytes — cheap
+   * enough to call once per page when a multi-page PDF is opened. Uses its
+   * own offscreen canvas, so it can't collide with the main render queue.
+   */
+  async function renderPageThumbnail(pdfDoc, pageNumber, targetWidth) {
+    const page = await pdfDoc.getPage(pageNumber);
+    const unscaled = page.getViewport({ scale: 1 });
+    const scale = targetWidth / unscaled.width;
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const ctx = canvas.getContext('2d');
+    await page.render({
+      canvasContext: ctx,
+      viewport,
+      annotationMode: pdfjsLib.AnnotationMode.DISABLE,
+    }).promise;
+    return canvas.toDataURL('image/png');
+  }
+
   return {
     loadPdf, renderPage, computeFitScale, rectToScreen, screenToRect, screenPointToPdf, pdfPointToScreen,
-    detectFormFields, renderThumbnail,
+    detectFormFields, renderThumbnail, renderPageThumbnail,
   };
 })();

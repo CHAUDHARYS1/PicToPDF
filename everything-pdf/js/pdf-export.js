@@ -10,6 +10,14 @@ EPDF.PdfExport = (function () {
     return (field.value || '').toString();
   }
 
+  /** A select field stores its current value as the option's export value
+   *  (e.g. "NY"), not its human-readable label (e.g. "New York") — look the
+   *  label up for anything meant to be read directly off the page. */
+  function selectDisplayText(field) {
+    const opt = (field.options || []).find((o) => o.value === field.value);
+    return opt ? opt.label : displayValue(field);
+  }
+
   function fontSizeFor(rect) {
     return Math.max(6, Math.min(11, rect.h * 0.65));
   }
@@ -17,6 +25,25 @@ EPDF.PdfExport = (function () {
   function hexToRgbComponents(hex) {
     const n = parseInt(hex.replace('#', ''), 16);
     return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  }
+
+  /** Draws a checkmark (short down-stroke + longer up-stroke) as two vector
+   *  lines rather than text — the standard 14 fonts have no check-mark
+   *  glyph, so drawing one as a character (e.g. "X") is a poor stand-in and
+   *  doesn't read as a checked box the way this app's own checkbox input
+   *  does on screen. Proportioned relative to the field rect so it scales
+   *  with however big the box was drawn. */
+  function drawCheckmark(page, rect, color) {
+    const { LineCapStyle } = PDFLib;
+    const { x, y, w, h } = rect;
+    const short = Math.min(w, h);
+    const thickness = Math.max(1.2, short * 0.14);
+    const p1 = { x: x + w * 0.16, y: y + h * 0.5 };
+    const p2 = { x: x + w * 0.42, y: y + h * 0.2 };
+    const p3 = { x: x + w * 0.84, y: y + h * 0.78 };
+    [[p1, p2], [p2, p3]].forEach(([start, end]) => {
+      page.drawLine({ start, end, thickness, color, lineCap: LineCapStyle.Round });
+    });
   }
 
   /** Bakes freehand/shape annotations directly onto each page's content
@@ -62,26 +89,58 @@ EPDF.PdfExport = (function () {
     });
   }
 
-  function applyRotation(pages, rotation) {
-    if (!rotation || !rotation.degrees) return;
-    const page = pages[rotation.page - 1];
-    if (!page) return;
-    const current = page.getRotation().angle;
-    page.setRotation(PDFLib.degrees((current + rotation.degrees) % 360));
+  /** `rotations` is an array of { page, degrees } — one entry per page that
+   *  has a nonzero user-applied rotation (see app.js's state.pageRotations). */
+  function applyRotation(pages, rotations) {
+    (rotations || []).forEach((rotation) => {
+      if (!rotation || !rotation.degrees) return;
+      const page = pages[rotation.page - 1];
+      if (!page) return;
+      const current = page.getRotation().angle;
+      page.setRotation(PDFLib.degrees((current + rotation.degrees) % 360));
+    });
+  }
+
+  /** Removes every real AcroForm widget already in the source PDF (if any —
+   *  e.g. a PDF that had genuine fillable fields, auto-detected on load into
+   *  this app's own field-model). Their live values never get synced back
+   *  into the AcroForm as the user types, so if left in place they survive
+   *  export as blank, on-top, interactive widgets that hide/obscure
+   *  whatever flattenAndExport draws underneath — the exported PDF would
+   *  *look* filled out but the fields are the same empty AcroForm ones
+   *  Acrobat renders. Safe to call even when the source has no form.
+   *
+   *  Deliberately does this at the raw annotation level (strip every
+   *  Widget from each page's /Annots, drop /AcroForm from the catalog)
+   *  rather than via pdf-lib's own form.removeField() — that helper
+   *  resolves each widget's existing appearance stream to garbage-collect
+   *  it, and throws on a widget that has no /AP (a real, if less common,
+   *  shape for a fillable field to be in) instead of just skipping it. */
+  function stripExistingFormFields(pdfDoc) {
+    const { PDFName } = PDFLib;
+    pdfDoc.getPages().forEach((page) => {
+      const annots = page.node.Annots();
+      if (!annots) return;
+      for (let i = annots.size() - 1; i >= 0; i--) {
+        const annot = pdfDoc.context.lookupMaybe(annots.get(i), PDFLib.PDFDict);
+        if (annot && annot.get(PDFName.of('Subtype')) === PDFName.of('Widget')) {
+          annots.remove(i);
+        }
+      }
+    });
+    pdfDoc.catalog.delete(PDFName.of('AcroForm'));
   }
 
   /** Draws every field's value directly onto the page content stream —
-   *  burned in, uneditable. There are no AcroForm widgets to strip here
-   *  since this app never creates real form fields for a flattened export;
-   *  fields placed/detected by the editor are a UI-layer concept until
-   *  exportEditable() below turns them into real widgets. */
-  async function flattenAndExport(pdfBytes, fields, annotations, rotation) {
+   *  burned in, uneditable. */
+  async function flattenAndExport(pdfBytes, fields, annotations, rotations) {
     const { PDFDocument, StandardFonts, rgb } = PDFLib;
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const pages = pdfDoc.getPages();
 
-    applyRotation(pages, rotation);
+    stripExistingFormFields(pdfDoc);
+    applyRotation(pages, rotations);
     drawAnnotations(pages, annotations, rgb);
 
     fields.forEach((field) => {
@@ -89,21 +148,14 @@ EPDF.PdfExport = (function () {
       if (!page) return;
       const { x, y, w, h } = field.rect;
 
-      if (field.type === 'checkbox') {
+      if (field.type === 'checkbox' || field.type === 'radio') {
         if (field.value === 'true') {
-          const size = Math.min(w, h) * 0.7;
-          page.drawText('X', {
-            x: x + (w - size * 0.6) / 2,
-            y: y + (h - size) / 2,
-            size,
-            font,
-            color: rgb(...TEXT_COLOR),
-          });
+          drawCheckmark(page, field.rect, rgb(...TEXT_COLOR));
         }
         return;
       }
 
-      const value = displayValue(field);
+      const value = field.type === 'select' ? selectDisplayText(field) : displayValue(field);
       if (!value) return;
       const fontSize = fontSizeFor(field.rect);
       page.drawText(value, {
@@ -118,17 +170,33 @@ EPDF.PdfExport = (function () {
     return pdfDoc.save();
   }
 
-  /** Creates real AcroForm widgets so the PDF stays fillable. */
-  async function exportEditable(pdfBytes, fields, annotations, rotation) {
+  /** Creates real AcroForm widgets so the PDF stays fillable. Any AcroForm
+   *  widgets already in the source (see stripExistingFormFields above) are
+   *  removed first — this app's field-model is the sole source of truth for
+   *  a field's value, so re-creating fresh widgets from it avoids leaving a
+   *  duplicate, stale-valued widget stacked on top of (or under) the new one. */
+  async function exportEditable(pdfBytes, fields, annotations, rotations) {
     const { PDFDocument, rgb } = PDFLib;
     const pdfDoc = await PDFDocument.load(pdfBytes);
+    stripExistingFormFields(pdfDoc);
     const form = pdfDoc.getForm();
     const pages = pdfDoc.getPages();
 
-    applyRotation(pages, rotation);
+    applyRotation(pages, rotations);
     drawAnnotations(pages, annotations, rgb);
 
+    // Radio options share one pdf-lib PDFRadioGroup object (unlike every
+    // other type, which gets its own independent widget) — collect them by
+    // group name first and create each group once, after the main pass.
+    const radioGroups = new Map(); // name -> field[]
+
     fields.forEach((field) => {
+      if (field.type === 'radio') {
+        if (!radioGroups.has(field.name)) radioGroups.set(field.name, []);
+        radioGroups.get(field.name).push(field);
+        return;
+      }
+
       const page = pages[field.page - 1];
       if (!page) return;
       const { x, y, w, h } = field.rect;
@@ -141,10 +209,35 @@ EPDF.PdfExport = (function () {
         return;
       }
 
+      if (field.type === 'select') {
+        const dd = form.createDropdown(widgetName);
+        dd.addToPage(page, { x, y, width: w, height: h });
+        const optionValues = (field.options || []).map((o) => o.value);
+        if (optionValues.length) dd.addOptions(optionValues);
+        const value = displayValue(field);
+        if (value && optionValues.includes(value)) dd.select(value);
+        return;
+      }
+
       const tf = form.createTextField(widgetName);
       tf.addToPage(page, { x, y, width: w, height: h, borderWidth: 0 });
       const value = displayValue(field);
       if (value) tf.setText(value);
+    });
+
+    radioGroups.forEach((groupFields, name) => {
+      const radio = form.createRadioGroup(`${name || 'Field'}_${groupFields[0].id}`);
+      let selectedOption = null;
+      groupFields.forEach((field) => {
+        const page = pages[field.page - 1];
+        if (!page) return;
+        const { x, y, w, h } = field.rect;
+        // field.id (not field.name, which every option in the group shares)
+        // is what distinguishes each option's own on-state in the PDF.
+        radio.addOptionToPage(field.id, page, { x, y, width: w, height: h });
+        if (field.value === 'true') selectedOption = field.id;
+      });
+      if (selectedOption) radio.select(selectedOption);
     });
 
     return pdfDoc.save();

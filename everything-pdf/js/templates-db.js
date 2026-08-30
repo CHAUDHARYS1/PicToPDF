@@ -43,7 +43,8 @@ EPDF.TemplatesDb = (function () {
 
   // ── templates store ──────────────────────────────────────────────
   // Record shape: { id, name, sourcePdfId, pageCount, pageSizes:[{width,height}],
-  //                 fields: [...FieldModel objects], createdAt, updatedAt }
+  //                 fields: [...FieldModel objects], pageRotations: {[page]: degrees},
+  //                 createdAt, updatedAt }
 
   async function saveTemplate(record) {
     const db = await openDb();
@@ -55,6 +56,7 @@ EPDF.TemplatesDb = (function () {
       pageCount: record.pageCount,
       pageSizes: record.pageSizes,
       fields: record.fields,
+      pageRotations: record.pageRotations || {},
       createdAt: record.createdAt || now,
       updatedAt: now,
     };
@@ -127,7 +129,7 @@ EPDF.TemplatesDb = (function () {
 
   // ── session store — autosaved in-progress work (one slot, key 'current')
   // Record shape: { id:'current', originalBytes, originalFileName,
-  //   currentTemplateId, pageNumber, pageRotation, fields, annotations,
+  //   currentTemplateId, pageNumber, pageRotations, fields, annotations,
   //   updatedAt }. Distinct from a template: values are real (not blanked),
   // and there's only ever one, since the editor only ever holds one PDF.
 
