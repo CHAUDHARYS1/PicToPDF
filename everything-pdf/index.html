@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="../theme.js"></script>
+<title>Everything PDF — PDF Editor</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'><rect x='1' y='1' width='54' height='54' rx='9' fill='%234338ca'/><path d='M12 19 L12 12 L19 12' stroke='white' stroke-width='2.8' fill='none' stroke-linecap='square'/><path d='M44 19 L44 12 L37 12' stroke='white' stroke-width='2.8' fill='none' stroke-linecap='square'/><path d='M12 37 L12 44 L19 44' stroke='white' stroke-width='2.8' fill='none' stroke-linecap='square'/><path d='M44 37 L44 44 L37 44' stroke='white' stroke-width='2.8' fill='none' stroke-linecap='square'/><rect x='19' y='25' width='18' height='2.6' fill='white'/><rect x='19' y='31' width='11' height='2.6' fill='white'/></svg>" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <a class="back-btn" href="../index.html" aria-label="Back to Everything PDF home">
+      <i class="ph ph-arrow-left"></i>
+    </a>
+    <div class="lockup">
+      <svg width="26" height="26" viewBox="0 0 56 56" aria-hidden="true">
+        <rect x="1" y="1" width="54" height="54" rx="9" fill="#4338ca"/>
+        <path d="M12 19 L12 12 L19 12" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/>
+        <path d="M44 19 L44 12 L37 12" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/>
+        <path d="M12 37 L12 44 L19 44" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/>
+        <path d="M44 37 L44 44 L37 44" stroke="#fff" stroke-width="2.8" fill="none" stroke-linecap="square"/>
+        <rect x="19" y="25" width="18" height="2.6" fill="#fff"/>
+        <rect x="19" y="31" width="11" height="2.6" fill="#fff"/>
+      </svg>
+      <span class="wm"><b>pdf</b>editor</span>
+    </div>
+    <div class="family">
+      <span>Also in this suite</span>
+      <span class="sibwm">pics<b>2</b>pdf</span>
+    </div>
+    <button class="btn subtle" id="templates-btn" type="button" hidden>
+      <i class="ph ph-squares-four"></i>Templates
+    </button>
+    <div class="tsep" id="doc-sep" hidden></div>
+    <div class="docname" id="docname" hidden>
+      <i class="ph ph-file-pdf" style="font-size:15px"></i><b id="docname-title"></b>
+    </div>
+    <div class="spacer"></div>
+    <span class="autosave" id="autosave" hidden>
+      <i class="ph ph-info"></i>Not saved as a template yet
+    </span>
+    <button class="btn icon" id="theme-toggle" type="button" aria-label="Toggle dark mode">
+      <i class="ph ph-moon" aria-hidden="true"></i>
+    </button>
+    <button class="btn icon" id="fullscreen-btn" type="button" disabled title="Load a PDF first" aria-label="Toggle full screen">
+      <i class="ph ph-arrows-out" aria-hidden="true"></i>
+    </button>
+    <button class="btn icon" id="print-btn" type="button" disabled title="Load a PDF first" aria-label="Print">
+      <i class="ph ph-printer" aria-hidden="true"></i>
+    </button>
+    <button class="btn" id="save-template-btn" type="button" disabled title="Load a PDF first">
+      <i class="ph ph-bookmark-simple"></i>Save as template
+    </button>
+    <button class="btn" id="reference-btn" type="button" disabled title="Load a PDF first">
+      <i class="ph ph-image-square"></i>Reference
+    </button>
+    <button class="btn primary" id="export-btn" type="button" disabled title="Load a PDF first">
+      <i class="ph-bold ph-export"></i>Export PDF
+    </button>
+  </header>
+
+  <div class="dashboard" id="dashboard-view">
+    <div class="resume-banner" id="resume-banner" hidden>
+      <i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i>
+      <div class="resume-text">
+        <div class="resume-title">Continue where you left off?</div>
+        <div class="resume-sub" id="resume-sub"></div>
+      </div>
+      <button class="btn sm" id="resume-discard-btn" type="button">Discard</button>
+      <button class="btn sm primary" id="resume-btn" type="button">Resume</button>
+    </div>
+
+    <div class="dash-head">
+      <div>
+        <h1 class="h1">Templates</h1>
+        <p class="sub">Field positions are saved per template. Values reset each time you open one.</p>
+      </div>
+      <button class="btn primary" id="new-template-btn" type="button">
+        <i class="ph-bold ph-plus"></i>New template
+      </button>
+    </div>
+
+    <p class="dash-empty" id="dash-empty" hidden>No saved templates yet — fill out a PDF below, then save it as a template to see it here.</p>
+    <div class="template-grid" id="template-grid" hidden></div>
+
+    <div class="eyebrow dash-section-label">One-off edit</div>
+    <div class="dropzone" id="dropzone">
+      <i class="ph ph-file-arrow-down" aria-hidden="true"></i>
+      <div class="t">Drop a PDF here to edit it once</div>
+      <div class="s">Existing form fields are detected automatically. Nothing is saved unless you turn it into a template.</div>
+      <button class="btn" id="browse-btn" type="button"><i class="ph ph-folder-open"></i>Browse files</button>
+    </div>
+    <input type="file" id="file-input" accept="application/pdf" hidden />
+  </div>
+
+  <div class="toolbar" id="toolbar" hidden>
+    <button class="tool on" id="tool-select" type="button"><i class="ph ph-cursor"></i>Select</button>
+    <button class="tool" id="tool-text" type="button"><i class="ph ph-textbox"></i>Text field</button>
+    <button class="tool" id="tool-checkbox" type="button" disabled title="Arrives in a later milestone"><i class="ph ph-check-square"></i>Checkbox</button>
+    <button class="tool" id="tool-draw" type="button"><i class="ph ph-pencil-simple"></i>Draw</button>
+    <div class="tsep"></div>
+    <button class="tool" id="undo-btn" type="button" disabled title="Nothing to undo"><i class="ph ph-arrow-counter-clockwise"></i>Undo</button>
+    <div class="spacer"></div>
+    <span class="meta" id="field-count-meta"></span>
+  </div>
+
+  <div class="draw-toolbar" id="draw-toolbar" hidden>
+    <div class="seg" id="draw-shape-seg" role="group" aria-label="Drawing tool">
+      <button type="button" data-shape="select" title="Select / move" aria-label="Select or move a drawing"><i class="ph-bold ph-cursor"></i></button>
+      <button type="button" data-shape="freehand" class="on" title="Freehand" aria-label="Freehand draw"><i class="ph-bold ph-pencil-simple"></i></button>
+      <button type="button" data-shape="arrow" title="Arrow" aria-label="Arrow"><i class="ph-bold ph-arrow-up-right"></i></button>
+      <button type="button" data-shape="rect" title="Box" aria-label="Box"><i class="ph-bold ph-square"></i></button>
+      <button type="button" data-shape="ellipse" title="Circle" aria-label="Circle"><i class="ph-bold ph-circle"></i></button>
+      <button type="button" data-shape="text" title="Text label" aria-label="Text label"><i class="ph-bold ph-text-t"></i></button>
+    </div>
+    <div class="draw-colors" id="draw-colors"></div>
+    <span class="meta" id="draw-hint">Drag on the page to draw</span>
+    <div class="spacer"></div>
+    <button class="btn sm" id="draw-delete-btn" type="button" disabled><i class="ph ph-trash"></i>Delete selected</button>
+    <button class="btn sm danger-ghost" id="draw-clear-btn" type="button"><i class="ph ph-eraser"></i>Clear drawings</button>
+  </div>
+
+  <div class="split" id="split" hidden>
+    <div class="stage" id="stage">
+      <div class="pagebar" id="pagebar" hidden>
+        <span id="page-info">Page 1 of 1</span>
+        <div class="z">
+          <button id="zoom-out" type="button" aria-label="Zoom out"><i class="ph ph-minus" style="font-size:12px"></i></button>
+          <span id="zoom-pct">100%</span>
+          <button id="zoom-in" type="button" aria-label="Zoom in"><i class="ph ph-plus" style="font-size:12px"></i></button>
+        </div>
+        <span id="paper-size"></span>
+        <button class="rotate-btn" id="rotate-btn" type="button" aria-label="Rotate page 90 degrees">
+          <i class="ph ph-arrow-clockwise"></i>
+        </button>
+      </div>
+
+      <div class="page-wrap" id="page-wrap" hidden>
+        <canvas class="page-canvas" id="page-canvas"></canvas>
+        <canvas class="draw-canvas" id="draw-canvas"></canvas>
+        <div class="field-overlay" id="field-overlay"></div>
+      </div>
+    </div>
+
+    <div class="rpanel" id="ref-panel" hidden>
+      <div class="rp-head">
+        <div class="t"><i class="ph ph-image-square"></i>Reference</div>
+        <button class="btn sm" id="ref-replace-btn" type="button"><i class="ph ph-upload-simple"></i>Replace</button>
+        <button class="btn sm icon" id="ref-popout-btn" type="button" aria-label="Open photo in a new tab" disabled>
+          <i class="ph ph-arrow-square-out"></i>
+        </button>
+        <button class="btn sm icon" id="ref-close-btn" type="button" aria-label="Close reference panel">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+      <div class="rp-body">
+        <div class="photo" id="ref-photo">
+          <div class="ph" id="ref-photo-placeholder">
+            <i class="ph ph-camera" aria-hidden="true"></i>
+            Technician's handwritten sheet<br />
+            <span>Drop or click to add a photo</span>
+          </div>
+          <img id="ref-photo-img" alt="Reference photo" hidden />
+          <div class="zoomctl" id="ref-zoomctl" hidden>
+            <button type="button" id="ref-zoom-out" aria-label="Zoom out"><i class="ph ph-magnifying-glass-minus"></i></button>
+            <button type="button" id="ref-zoom-in" aria-label="Zoom in"><i class="ph ph-magnifying-glass-plus"></i></button>
+            <button type="button" id="ref-rotate" aria-label="Rotate"><i class="ph ph-arrow-clockwise"></i></button>
+            <button type="button" id="ref-fit" aria-label="Fit to view"><i class="ph ph-arrows-out"></i></button>
+          </div>
+        </div>
+        <div class="scratch">
+          <div class="sh">
+            <span class="l">Scratch — extracted text</span>
+            <button class="btn sm" id="ref-copy-btn" type="button"><i class="ph ph-copy"></i>Copy</button>
+          </div>
+          <textarea id="ref-scratch" placeholder="Jot down text from the photo here…" spellcheck="false"></textarea>
+          <div class="note"><i class="ph ph-note-pencil"></i><span>Free text. Nothing here is written to the PDF.</span></div>
+        </div>
+      </div>
+    </div>
+    <input type="file" id="ref-file-input" accept="image/*" hidden />
+  </div>
+
+  <div class="scrim" id="export-scrim" hidden></div>
+  <div class="sheet" id="export-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="export-title">
+    <div class="sheet-h">
+      <h3 id="export-title">Export PDF</h3>
+      <p class="sub" id="export-field-count" style="font-size:12px;margin-top:4px;"></p>
+    </div>
+    <div class="sheet-b">
+      <div class="prop">
+        <span class="pl">Filename</span>
+        <input type="text" class="inp" id="export-filename" spellcheck="false" />
+      </div>
+      <div class="prop">
+        <span class="pl">Field handling</span>
+        <div class="optrow" id="export-mode-flatten">
+          <span class="chk on"></span>
+          <div><div class="ot">Flatten fields</div><div class="os">Text and signature become part of the page. Nobody can edit or clear them.</div></div>
+        </div>
+        <div class="optrow" id="export-mode-editable">
+          <span class="chk"></span>
+          <div><div class="ot">Keep fields editable</div><div class="os">Stays a fillable PDF.</div></div>
+        </div>
+      </div>
+      <div class="filesize">
+        <i class="ph ph-file-pdf"></i>
+        <span id="export-summary"></span>
+      </div>
+    </div>
+    <div class="sheet-f">
+      <button class="btn" id="export-cancel" type="button">Cancel</button>
+      <button class="btn primary" id="export-confirm" type="button">
+        <i class="ph-bold ph-download-simple" aria-hidden="true"></i>
+        Export
+      </button>
+    </div>
+  </div>
+
+  <div class="scrim" id="template-name-scrim" hidden></div>
+  <div class="sheet" id="template-name-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="template-name-title">
+    <div class="sheet-h">
+      <h3 id="template-name-title">Save as template</h3>
+      <p class="sub" style="font-size:12px;margin-top:4px;">Field positions and names are saved. Values reset each time you open it.</p>
+    </div>
+    <div class="sheet-b">
+      <div class="prop">
+        <span class="pl">Template name</span>
+        <input type="text" class="inp" id="template-name-input" spellcheck="false" />
+      </div>
+    </div>
+    <div class="sheet-f">
+      <button class="btn" id="template-name-cancel" type="button">Cancel</button>
+      <button class="btn primary" id="template-name-confirm" type="button">
+        <i class="ph-bold ph-bookmark-simple" aria-hidden="true"></i>
+        Save template
+      </button>
+    </div>
+  </div>
+
+  <div class="scrim" id="confirm-scrim" hidden></div>
+  <div class="sheet narrow" id="confirm-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="sheet-h">
+      <h3 id="confirm-title">Delete template?</h3>
+      <p class="sub" id="confirm-message" style="font-size:12px;margin-top:4px;"></p>
+    </div>
+    <div class="sheet-f">
+      <button class="btn" id="confirm-cancel" type="button">Cancel</button>
+      <button class="btn danger" id="confirm-ok" type="button">Delete</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="js/field-model.js"></script>
+<script src="js/annotations.js"></script>
+<script src="js/pdf-render.js"></script>
+<script src="js/canvas-editor.js"></script>
+<script src="js/annotation-editor.js"></script>
+<script src="js/pdf-export.js"></script>
+<script src="js/templates-db.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
