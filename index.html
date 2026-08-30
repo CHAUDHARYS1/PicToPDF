@@ -22,6 +22,8 @@
     --blue-soft: #eaf0fe;
     --indigo: #4338ca;
     --indigo-soft: #eeecfb;
+    --green: #12784a;
+    --green-soft: #e8f2ec;
   }
   .dark {
     --bg: #16171a;
@@ -36,6 +38,8 @@
     --blue-soft: #1c2a42;
     --indigo: #7c6ff0;
     --indigo-soft: #252338;
+    --green: #3ec37c;
+    --green-soft: #1c2e24;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
@@ -63,6 +67,15 @@
     flex-wrap: wrap;
     justify-content: center;
     max-width: 700px;
+    opacity: 0;
+    animation: tiles-fade-in 500ms ease 150ms forwards;
+  }
+  @keyframes tiles-fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tiles { animation-duration: 1ms; animation-delay: 0ms; }
   }
 
   .tile {
@@ -97,11 +110,13 @@
   .tile .name { font-size: 19px; font-weight: 600; letter-spacing: -.015em; }
   .tile.pics2pdf .name span { color: var(--blue); }
   .tile.pdfeditor .name b { color: var(--indigo); font-weight: 700; }
+  .tile.compresspdf .name b { color: var(--green); font-weight: 700; }
 
   .tile .desc { font-size: 13px; color: var(--text-dim); text-align: center; line-height: 1.5; }
 
   .tile.pics2pdf { --accent: var(--blue); --accent-soft: var(--blue-soft); }
   .tile.pdfeditor { --accent: var(--indigo); --accent-soft: var(--indigo-soft); }
+  .tile.compresspdf { --accent: var(--green); --accent-soft: var(--green-soft); }
 
   footer { margin-top: 48px; font-size: 11.5px; color: var(--text-faint); }
 
@@ -161,8 +176,19 @@
         <rect x="19" y="25" width="18" height="2.6" fill="#fff"/>
         <rect x="19" y="31" width="11" height="2.6" fill="#fff"/>
       </svg>
-      <div class="name">PDF <b>Editor</b></div>
+      <div class="name"><b>pdf</b>editor</div>
       <div class="desc">Drop in any PDF, place fields, fill, sign, and export.</div>
+    </a>
+
+    <a class="tile compresspdf" href="compresspdf/index.html">
+      <svg class="mark" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="1" y="1" width="54" height="54" rx="9" fill="#12784a"/>
+        <rect x="11" y="12" width="34" height="9" fill="#fff"/>
+        <rect x="11" y="35" width="34" height="9" fill="#fff"/>
+        <rect x="17" y="25.4" width="22" height="5.2" fill="#fff" opacity=".55"/>
+      </svg>
+      <div class="name">compress<b>pdf</b></div>
+      <div class="desc">Shrink a PDF's file size — pick a level, see the estimate, download.</div>
     </a>
   </div>
 
