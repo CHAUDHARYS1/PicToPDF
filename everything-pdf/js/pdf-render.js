@@ -173,8 +173,36 @@ EPDF.PdfRender = (function () {
     return fields;
   }
 
+  /**
+   * Renders `pageNumber` of a standalone PDF (given as raw bytes, not an
+   * already-open pdfDoc) to a small PNG data URL, for template-card
+   * thumbnails. Uses its own offscreen canvas — never the shared
+   * page-canvas — so it can't collide with the main render queue above.
+   */
+  async function renderThumbnail(bytes, pageNumber, targetWidth) {
+    const pdfDoc = await loadPdf(bytes);
+    try {
+      const page = await pdfDoc.getPage(pageNumber);
+      const unscaled = page.getViewport({ scale: 1 });
+      const scale = targetWidth / unscaled.width;
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const ctx = canvas.getContext('2d');
+      await page.render({
+        canvasContext: ctx,
+        viewport,
+        annotationMode: pdfjsLib.AnnotationMode.DISABLE,
+      }).promise;
+      return canvas.toDataURL('image/png');
+    } finally {
+      pdfDoc.destroy();
+    }
+  }
+
   return {
     loadPdf, renderPage, computeFitScale, rectToScreen, screenToRect, screenPointToPdf,
-    detectFormFields,
+    detectFormFields, renderThumbnail,
   };
 })();

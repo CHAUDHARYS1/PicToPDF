@@ -239,18 +239,18 @@ window.EPDF = window.EPDF || {};
     return div.innerHTML;
   }
 
-  // Draws each field's rect as a tinted box on a fixed-white "page", scaled
-  // to the template's real page size — no static thumbnail image, matching
-  // the brief's "draw the boxes from field coordinates" rule. Uses the
+  // Draws each field's rect as a tinted box, scaled to the template's real
+  // page size, to overlay on top of the rendered page thumbnail. Background
+  // is transparent — the rendered PDF page image sits underneath. Uses the
   // theme's --accent via the style attribute (not a presentation attribute)
   // so it recolors correctly between light/dark.
   function buildThumbnailSvg(fields, pageW, pageH) {
     const stroke = Math.max(pageW, pageH) * 0.004;
     const boxes = fields.map((f) => {
       const y = pageH - f.rect.y - f.rect.h; // PDF is bottom-left/y-up; SVG is top-left/y-down
-      return `<rect x="${f.rect.x}" y="${y}" width="${f.rect.w}" height="${f.rect.h}" rx="2" style="fill:var(--accent);fill-opacity:.16;stroke:var(--accent);stroke-width:${stroke}" />`;
+      return `<rect x="${f.rect.x}" y="${y}" width="${f.rect.w}" height="${f.rect.h}" rx="2" style="fill:var(--accent);fill-opacity:.22;stroke:var(--accent);stroke-width:${stroke}" />`;
     }).join('');
-    return `<svg viewBox="0 0 ${pageW} ${pageH}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true"><rect x="0" y="0" width="${pageW}" height="${pageH}" fill="#fff"/>${boxes}</svg>`;
+    return `<svg viewBox="0 0 ${pageW} ${pageH}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">${boxes}</svg>`;
   }
 
   async function renderTemplateGrid() {
@@ -259,13 +259,13 @@ window.EPDF = window.EPDF || {};
     els.dashEmpty.hidden = templates.length > 0;
     els.templateGrid.hidden = templates.length === 0;
     els.templateGrid.innerHTML = templates.map((tmpl) => {
-      const pageSize = (tmpl.pageSizes && tmpl.pageSizes[0]) || { width: 612, height: 792 };
-      const fieldsOnPage1 = tmpl.fields.filter((f) => f.page === 1);
       const name = escapeHtml(tmpl.name);
       return `
         <div class="tmpl-card" data-id="${tmpl.id}">
           <button type="button" class="tmpl-open" data-open-id="${tmpl.id}">
-            <span class="tmpl-thumb">${buildThumbnailSvg(fieldsOnPage1, pageSize.width, pageSize.height)}</span>
+            <span class="tmpl-thumb" data-thumb-id="${tmpl.id}">
+              <i class="ph ph-file-pdf tmpl-thumb-placeholder" aria-hidden="true"></i>
+            </span>
             <span class="tmpl-name">${name}</span>
             <span class="tmpl-meta">${tmpl.fields.length} field${tmpl.fields.length === 1 ? '' : 's'}</span>
           </button>
@@ -274,6 +274,27 @@ window.EPDF = window.EPDF || {};
           </button>
         </div>`;
     }).join('');
+    templates.forEach(renderTemplateThumbnail);
+  }
+
+  // Fills in a card's thumbnail after the grid's initial synchronous paint —
+  // fetching+rendering each template's source PDF is async, so cards show a
+  // placeholder icon until their own render resolves.
+  async function renderTemplateThumbnail(tmpl) {
+    const holder = els.templateGrid.querySelector(`[data-thumb-id="${tmpl.id}"]`);
+    if (!holder) return;
+    try {
+      const srcPdf = await EPDF.TemplatesDb.loadSourcePdf(tmpl.sourcePdfId);
+      if (!srcPdf) return;
+      const dataUrl = await PdfRender.renderThumbnail(srcPdf.bytes.slice(0), 1, 240);
+      const pageSize = (tmpl.pageSizes && tmpl.pageSizes[0]) || { width: 612, height: 792 };
+      const fieldsOnPage1 = tmpl.fields.filter((f) => f.page === 1);
+      holder.innerHTML = `
+        <img class="tmpl-thumb-img" src="${dataUrl}" alt="" />
+        <span class="tmpl-thumb-overlay">${buildThumbnailSvg(fieldsOnPage1, pageSize.width, pageSize.height)}</span>`;
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   async function openTemplate(id) {
