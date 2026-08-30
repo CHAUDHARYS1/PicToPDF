@@ -1,0 +1,200 @@
+/* ────────────────────────────────────────────────────────────
+   compresspdf — subapp shell styles
+   Ported from ../design_handoff_compresspdf/Everything PDF - Screens.html
+   (frames 07/08), the design contract for this app. The shared shell
+   (topbar/lockup/family, buttons, h1/sub/eyebrow/divide/note, dropzone) is
+   the same design system everything-pdf/styles.css already implements —
+   reused verbatim here rather than reinvented. Only --accent differs
+   (green, scoped to this file's own :root/.dark — see README's Design
+   Tokens section for why: a per-subapp accent, not a suite-wide change).
+   ──────────────────────────────────────────────────────────── */
+
+:root {
+  --bg: #fafaf7;
+  --surface: #fff;
+  --surface-2: #f4f3ee;
+  --surface-3: #ecebe3;
+  --border: #e4e2d9;
+  --border-strong: #d2cfc2;
+  --text: #1c1d1a;
+  --text-dim: #5e605a;
+  --text-faint: #96968c;
+  --accent: #12784a;
+  --accent-hover: #0d5c39;
+  --accent-soft: #e8f2ec;
+  --accent-ring: rgba(18, 120, 74, .22);
+  --sib: #2563EB;
+  --danger: #c0392b;
+  --danger-soft: #fbeae8;
+  --font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --r: 6px;
+}
+
+.dark {
+  --bg: #16171a;
+  --surface: #1e2024;
+  --surface-2: #24262b;
+  --surface-3: #2c2f35;
+  --border: #2f3238;
+  --border-strong: #3a3e45;
+  --text: #eceded;
+  --text-dim: #a2a5aa;
+  --text-faint: #71757c;
+  --accent: #3ec37c;
+  --accent-hover: #5cd694;
+  --accent-soft: #1c2e24;
+  --accent-ring: rgba(62, 195, 124, .3);
+  --sib: #5b8def;
+  --danger: #e06055;
+  --danger-soft: #3a1f1c;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); text-decoration: underline; }
+
+button { font-family: inherit; }
+input, select, textarea { font-family: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ── top bar ── */
+.topbar { height: 52px; flex: none; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; padding: 0 18px; }
+.back-btn { width: 32px; height: 32px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: var(--text-dim); text-decoration: none; transition: background 120ms ease, color 120ms ease; }
+.back-btn:hover { background: var(--surface-2); color: var(--accent); text-decoration: none; }
+.back-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.back-btn i { font-size: 18px; }
+.lockup { display: flex; align-items: center; gap: 10px; text-decoration: none; border-radius: 6px; }
+.lockup:hover { opacity: .85; }
+.lockup:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.lockup .wm { font-size: 19px; font-weight: 500; letter-spacing: -.025em; line-height: 1; color: var(--text); }
+.lockup .wm b { font-weight: 700; color: var(--accent); }
+.family { display: flex; align-items: center; gap: 7px; padding-left: 16px; margin-left: 2px; border-left: 1px solid var(--border); font-size: 11.5px; color: var(--text-faint); letter-spacing: .01em; }
+.family .sibwm { font-weight: 500; color: var(--text-dim); letter-spacing: -.02em; font-size: 12.5px; text-decoration: none; border-radius: 3px; }
+.family .sibwm b { font-weight: 700; color: var(--sib); }
+.family .sibwm:hover { color: var(--text); text-decoration: none; }
+.family .sibwm:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.topbar .spacer { flex: 1; }
+
+/* ── buttons ── */
+.btn { height: 34px; padding: 0 13px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); border-radius: var(--r); font-size: 13px; font-weight: 500; font-family: inherit; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; white-space: nowrap; }
+.btn:hover:not(:disabled) { background: var(--surface-2); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn i { font-size: 15px; color: var(--text-dim); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary i { color: #fff; }
+.btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn.sm { height: 28px; padding: 0 10px; font-size: 12px; }
+.btn.icon { width: 34px; padding: 0; justify-content: center; }
+.btn.sm.icon { width: 28px; }
+
+/* ── generic ── */
+.h1 { font-size: 22px; font-weight: 600; letter-spacing: -.02em; margin: 0; }
+.sub { font-size: 13px; color: var(--text-dim); margin: 5px 0 0; }
+.eyebrow { font-size: 10.5px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--text-faint); }
+.divide { height: 1px; background: var(--border); }
+.note { font-size: 11.5px; line-height: 1.6; color: var(--text-faint); display: flex; gap: 7px; }
+.note i { font-size: 14px; flex: none; margin-top: 1px; }
+
+/* ── empty-state dropzone (reused pattern from everything-pdf's dashboard) ── */
+.dropzone { border: 1.5px dashed var(--border-strong); border-radius: var(--r); background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 9px; padding: 48px 34px; text-align: center; }
+.dropzone.dragover { border-color: var(--accent); background: var(--accent-soft); }
+.dropzone i { font-size: 26px; color: var(--text-faint); }
+.dropzone .t { font-size: 14px; font-weight: 600; }
+.dropzone .s { font-size: 12px; color: var(--text-dim); }
+
+/* ── error state (not designed in the handoff — README calls out three
+   cases to handle at minimum; styled to match .dropzone's weight/position
+   rather than introduce a new pattern) ── */
+.error-note { border: 1.5px solid var(--danger); border-radius: var(--r); background: var(--danger-soft); display: flex; align-items: center; gap: 11px; padding: 16px 17px; }
+.error-note i { font-size: 20px; color: var(--danger); flex: none; }
+.error-note span { font-size: 12.5px; color: var(--text); line-height: 1.5; }
+
+/* ── content column (screen-specific — everything-pdf's own dashboard
+   uses a different, wider centering pattern; this one is narrower and
+   truly centered, matching the compressor's single-task layout) ── */
+.cwrap { flex: 1; overflow-y: auto; display: flex; flex-direction: column; align-items: center; padding: 40px 30px; }
+.ccol { width: 100%; max-width: 700px; display: flex; flex-direction: column; gap: 22px; }
+
+/* ── file card ── */
+.filecard { display: flex; align-items: center; gap: 13px; padding: 14px 15px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
+.filecard > i { font-size: 26px; color: var(--accent); }
+.filecard .fn { font-size: 13.5px; font-weight: 600; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filecard .fm { font-size: 11.5px; color: var(--text-faint); margin-top: 3px; display: flex; gap: 7px; }
+
+/* ── level picker ── */
+.levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 640px) {
+  .levels { grid-template-columns: 1fr; }
+}
+.lvl { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 15px 15px 14px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.lvl:hover { background: var(--surface-2); }
+.lvl.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.lvl.on:hover { background: var(--surface); }
+.lvl .lh { display: flex; align-items: center; gap: 8px; }
+.lvl .lh .nm { font-size: 13.5px; font-weight: 600; letter-spacing: -.01em; }
+.lvl .lh .rd { margin-left: auto; width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--border-strong); flex: none; background: var(--surface); }
+.lvl.on .lh .rd { border-color: var(--accent); border-width: 4.5px; }
+.lvl .est { font-size: 23px; font-weight: 600; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+.lvl .est span { font-size: 12.5px; font-weight: 500; color: var(--text-faint); letter-spacing: 0; margin-left: 5px; }
+.lvl .est.skeleton { color: transparent; background: var(--surface-3); border-radius: 4px; width: 70px; }
+.saved { font-size: 11.5px; font-weight: 600; color: var(--accent); letter-spacing: .01em; }
+.lvl .why { font-size: 11.5px; line-height: 1.55; color: var(--text-dim); border-top: 1px solid var(--border); padding-top: 9px; margin-top: 1px; }
+.bar { height: 9px; border-radius: 5px; background: var(--surface-3); overflow: hidden; display: flex; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 5px; }
+
+.levels.busy { pointer-events: none; opacity: .6; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display: inline-block; animation: spin 800ms linear infinite; }
+
+/* ── size comparison chart (level picker) ──
+   Vertical column chart, log-scaled so a normal few-MB-to-tens-of-MB PDF
+   doesn't collapse into a sliver next to a TB gridline. Gridline labels are
+   round log10 decades (1 KB, 10 KB, 1 MB, …) — an axis guide, not a byte-
+   exact conversion; the value printed on each bar's cap is the exact
+   formatBytes() figure. */
+.sizechart { padding: 16px 17px 14px; }
+.scplot { position: relative; height: 190px; margin-left: 2px; }
+.sctick { position: absolute; left: 0; right: 0; border-top: 1px solid var(--border); }
+.sctick .lbl { position: absolute; left: 0; top: -7px; transform: translateY(-100%); font-size: 10px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.scbars { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; gap: 48px; }
+.scbar-col { display: flex; flex-direction: column; align-items: center; width: 64px; height: 100%; justify-content: flex-end; }
+.scval { font-size: 11.5px; font-weight: 600; margin-bottom: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.scbar { width: 22px; border-radius: 4px 4px 0 0; min-height: 3px; transition: height 220ms ease; }
+.scbar.before { background: var(--border-strong); }
+.scbar.after { background: var(--accent); }
+.sclabel { font-size: 10.5px; color: var(--text-dim); margin-top: 7px; }
+
+/* ── result screen (frame 08) ── */
+.bigsave { display: flex; align-items: center; gap: 16px; padding: 20px 22px; background: var(--accent-soft); border: 1px solid var(--accent); border-radius: var(--r); }
+.bigsave .pct { font-size: 40px; font-weight: 600; letter-spacing: -.035em; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+.bigsave .bt { font-size: 13.5px; font-weight: 600; }
+.bigsave .bs { font-size: 12px; color: var(--text-dim); margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
+
+.cmpbar { display: flex; flex-direction: column; gap: 7px; }
+.cmpbar .cl { display: flex; align-items: baseline; justify-content: space-between; font-size: 12px; color: var(--text-dim); }
+.cmpbar .cl b { font-size: 13px; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.frowck { display: flex; align-items: center; gap: 9px; font-size: 12.5px; padding: 4px 0; color: var(--text-dim); }
+.frowck .v { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--text); }
+
+[hidden] { display: none !important; }
