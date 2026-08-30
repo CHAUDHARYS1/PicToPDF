@@ -30,6 +30,20 @@ EPDF.CanvasEditor = (function () {
       const el = document.createElement('div');
       el.className = 'fld';
       el.dataset.fieldId = field.id;
+      // Attached once, here, rather than in renderNodeContent (which reruns
+      // on every render pass for this same persistent div) — otherwise
+      // every relayout would stack another duplicate listener. 'focus'
+      // doesn't bubble, so this only fires when the wrapper div itself is
+      // the direct target (Tab landing on it), never when the <input> it
+      // grows during editing receives focus.
+      el.addEventListener('focus', () => {
+        const f = store.get(field.id);
+        if (!f || f.type === 'checkbox' || f.type === 'signature') return;
+        if (editingFieldId === f.id) return;
+        const selected = store.getSelected();
+        if (!selected || selected.id !== f.id) store.select(f.id);
+        enterEditing(f.id);
+      });
       overlayEl.appendChild(el);
       return el;
     }
@@ -37,12 +51,26 @@ EPDF.CanvasEditor = (function () {
     function renderNodeContent(el, field, opts) {
       const isSelected = opts.selected;
       const isEditing = opts.editing;
+      const isCheckbox = field.type === 'checkbox';
+      const isSignature = field.type === 'signature';
 
       el.className = 'fld' +
         (field.type === 'number' ? ' num' : '') +
-        (field.type === 'checkbox' ? ' checkbox' : '') +
+        (isCheckbox ? ' checkbox' : '') +
         (isSelected ? ' active' : '') +
         (!field.value && !isEditing ? ' empty' : '');
+
+      // The wrapper div is the field's own tab-stop when idle, so Tab/
+      // Shift+Tab can reach a field it hasn't clicked into yet. Once
+      // editing starts, the <input> becomes the real tab-stop, so the
+      // wrapper drops out of tab order rather than doubling it. Checkboxes
+      // skip this entirely — their native <input type=checkbox> is already
+      // focusable on its own.
+      if (!isCheckbox && !isSignature) {
+        el.tabIndex = isEditing ? -1 : 0;
+      } else {
+        el.removeAttribute('tabindex');
+      }
 
       // Wipe and rebuild children (cheap — a handful of nodes per field).
       el.innerHTML = '';
@@ -106,9 +134,43 @@ EPDF.CanvasEditor = (function () {
       el.style.height = box.height + 'px';
     }
 
+    // Tab order should follow how a person reads the page, not field
+    // insertion order (draw order, or whatever order a source PDF's
+    // AcroForm annotations happened to list). Buckets fields into rows by
+    // y-proximity (so fields on the same visual line don't get shuffled by
+    // sub-pixel y differences), top row first, left-to-right within a row.
+    function readingOrder(fields) {
+      const byPage = new Map();
+      fields.forEach((f) => {
+        if (!byPage.has(f.page)) byPage.set(f.page, []);
+        byPage.get(f.page).push(f);
+      });
+
+      const result = [];
+      Array.from(byPage.keys()).sort((a, b) => a - b).forEach((page) => {
+        const pageFields = byPage.get(page);
+        const avgH = pageFields.reduce((sum, f) => sum + f.rect.h, 0) / pageFields.length || 20;
+        const rowTolerance = avgH * 0.6;
+        const byY = pageFields.slice().sort((a, b) => (b.rect.y + b.rect.h / 2) - (a.rect.y + a.rect.h / 2));
+        const rows = [];
+        byY.forEach((f) => {
+          const cy = f.rect.y + f.rect.h / 2;
+          let row = rows.find((r) => Math.abs(r.cy - cy) <= rowTolerance);
+          if (!row) { row = { cy, items: [] }; rows.push(row); }
+          row.items.push(f);
+        });
+        rows.sort((a, b) => b.cy - a.cy); // PDF space is y-up — higher y is higher on the page
+        rows.forEach((row) => {
+          row.items.sort((a, b) => a.rect.x - b.rect.x);
+          result.push(...row.items);
+        });
+      });
+      return result;
+    }
+
     function fullLayout() {
       const viewport = currentViewport();
-      const fields = store.list();
+      const fields = readingOrder(store.list());
       const seen = new Set();
       const selected = store.getSelected();
 
@@ -127,6 +189,7 @@ EPDF.CanvasEditor = (function () {
           el = buildNode(field);
           nodes.set(field.id, el);
         }
+        overlayEl.appendChild(el); // re-append in reading order — a no-op if already last, a reorder otherwise
         positionNode(el, field, viewport);
         renderNodeContent(el, field, {
           selected: selected && selected.id === field.id,
@@ -174,8 +237,11 @@ EPDF.CanvasEditor = (function () {
       if (r.type === 'add' || r.type === 'remove') return fullLayout();
       if (r.type === 'select') return fullLayout();
       if (r.type === 'update') {
+        // A value keystroke never changes reading order — cheap single-node
+        // update. A rect change (drag/resize finishing) can, so re-sort the
+        // whole layout to keep tab order matching the new visual order.
         if (r.valueOnly) updateValueDisplay(r.field.id);
-        else refreshOneField(r.field.id);
+        else fullLayout();
         return;
       }
       fullLayout();
