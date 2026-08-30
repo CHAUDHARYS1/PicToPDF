@@ -10,11 +10,27 @@ window.EPDF = window.EPDF || {};
   const $ = (sel) => document.querySelector(sel);
   const els = {};
 
+  const ZOOM_MIN = 40;
+  const ZOOM_MAX = 200;
+  const ZOOM_STORAGE_KEY = 'epdf-zoom';
+
+  function loadSavedZoom() {
+    try {
+      const val = parseInt(localStorage.getItem(ZOOM_STORAGE_KEY), 10);
+      if (Number.isFinite(val)) return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, val));
+    } catch (err) { /* localStorage unavailable (e.g. private browsing) — fall through to default */ }
+    return 100;
+  }
+
+  function saveZoom(percent) {
+    try { localStorage.setItem(ZOOM_STORAGE_KEY, String(percent)); } catch (err) { /* ignore */ }
+  }
+
   const state = {
     view: 'dashboard',     // 'dashboard' | 'editor'
     pdfDoc: null,
     pageNumber: 1,
-    zoomPercent: 100,
+    zoomPercent: loadSavedZoom(),
     viewport: null,
     store: null,
     editor: null,
@@ -98,7 +114,7 @@ window.EPDF = window.EPDF || {};
     const pdfDoc = await PdfRender.loadPdf(buffer);
     state.pdfDoc = pdfDoc;
     state.pageNumber = 1;
-    state.zoomPercent = 100;
+    state.zoomPercent = loadSavedZoom();
     state.store = FieldModel.createStore();
     state.store.subscribe(() => renderFieldCountMeta(state.store.list()));
 
@@ -185,7 +201,8 @@ window.EPDF = window.EPDF || {};
   }
 
   function changeZoom(delta) {
-    state.zoomPercent = Math.max(40, Math.min(200, state.zoomPercent + delta));
+    state.zoomPercent = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, state.zoomPercent + delta));
+    saveZoom(state.zoomPercent);
     rerenderPage();
   }
 
