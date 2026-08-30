@@ -48,7 +48,7 @@ window.EPDF = window.EPDF || {};
       'page-wrap', 'page-canvas', 'field-overlay', 'pagebar', 'page-info', 'paper-size',
       'zoom-out', 'zoom-in', 'zoom-pct',
       'docname', 'docname-title', 'doc-sep', 'autosave',
-      'reference-btn', 'export-btn',
+      'theme-toggle', 'reference-btn', 'export-btn',
       'tool-select', 'tool-text', 'tool-checkbox', 'tool-signature',
       'field-count-meta',
       'export-scrim', 'export-sheet', 'export-title', 'export-field-count',
@@ -411,5 +411,6 @@ window.EPDF = window.EPDF || {};
     wireResize();
     wireExportSheet();
     wireReferencePanel();
+    EPDFTheme.wireToggleButton(els.themeToggle);
   });
 })();

@@ -3,8 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="theme.js"></script>
 <title>Everything PDF</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'><rect x='2' y='2' width='52' height='52' rx='9' fill='%231c1d1a'/><path d='M19 12 L12 12 L12 19' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='square'/><path d='M37 12 L44 12 L44 19' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='square'/><path d='M12 37 L12 44 L19 44' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='square'/><path d='M44 37 L44 44 L37 44' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='square'/></svg>" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
 <style>
   :root {
     --bg: #fafaf7;
@@ -20,6 +22,20 @@
     --blue-soft: #eaf0fe;
     --indigo: #4338ca;
     --indigo-soft: #eeecfb;
+  }
+  .dark {
+    --bg: #16171a;
+    --surface: #1e2024;
+    --border: #2f3238;
+    --border-strong: #3a3e45;
+    --text: #eceded;
+    --text-dim: #a2a5aa;
+    --text-faint: #71757c;
+
+    --blue: #5b8def;
+    --blue-soft: #1c2a42;
+    --indigo: #7c6ff0;
+    --indigo-soft: #252338;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
@@ -88,9 +104,33 @@
   .tile.pdfeditor { --accent: var(--indigo); --accent-soft: var(--indigo-soft); }
 
   footer { margin-top: 48px; font-size: 11.5px; color: var(--text-faint); }
+
+  .theme-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 17px;
+    transition: background 120ms ease, color 120ms ease;
+  }
+  .theme-toggle:hover { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+  .theme-toggle:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 </style>
 </head>
 <body>
+
+  <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode">
+    <i class="ph ph-moon" aria-hidden="true"></i>
+  </button>
 
   <header>
     <div class="wm">everything<b>pdf</b></div>
@@ -128,5 +168,8 @@
 
   <footer>Built and managed by SC Design &amp; Consultation</footer>
 
+<script>
+  EPDFTheme.wireToggleButton(document.getElementById('theme-toggle'));
+</script>
 </body>
 </html>

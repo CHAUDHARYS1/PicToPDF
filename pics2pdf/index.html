@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<script src="../theme.js"></script>
 <title>Pics2PDF — Images to PDF</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'><rect x='2' y='2' width='52' height='52' rx='9' fill='%232563EB'/><path d='M19 12 L12 12 L12 19' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='square'/><path d='M37 12 L44 12 L44 19' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='square'/><path d='M12 37 L12 44 L19 44' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='square'/><path d='M44 37 L44 44 L37 44' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='square'/><text x='28' y='38' text-anchor='middle' font-family='Helvetica,Arial,sans-serif' font-weight='700' font-size='26' fill='white'>2</text></svg>" />
 <link rel="apple-touch-icon" sizes="180x180" href="assets/app-logo/apple-touch-icon-180x180.png">
@@ -65,6 +66,34 @@
     --bottom-bar-h: 88px;
   }
 
+  .dark {
+    --bg:           #16171a;
+    --surface:      #1e2024;
+    --surface-2:    #24262b;
+    --surface-3:    #2c2f35;
+    --border:       #2f3238;
+    --border-strong:#3a3e45;
+    --text:         #eceded;
+    --text-dim:     #a2a5aa;
+    --text-faint:   #71757c;
+
+    --accent:       #5b8def;
+    --accent-hover: #7ba3f2;
+    --accent-soft:  #1c2a42;
+    --accent-ring:  rgba(91, 141, 239, 0.3);
+
+    --danger:       #e06055;
+    --danger-soft:  #3a1f1c;
+    --success:      #3fbd7a;
+    --warn:         #d9a441;
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.24);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.32), 0 1px 2px rgba(0, 0, 0, 0.24);
+    --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.40), 0 2px 4px rgba(0, 0, 0, 0.24);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.50), 0 4px 12px rgba(0, 0, 0, 0.30);
+    --shadow-overlay: 0 24px 80px rgba(0, 0, 0, 0.60);
+  }
+
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { margin: 0; padding: 0; }
@@ -96,6 +125,7 @@
     -webkit-backdrop-filter: saturate(180%) blur(14px);
     border-bottom: 1px solid var(--border);
   }
+  .dark header.app { background: rgba(22, 23, 26, 0.85); }
   .header-inner {
     max-width: 1280px;
     margin: 0 auto;
@@ -137,6 +167,7 @@
   }
   .brand-text span { color: var(--accent); }
 
+  .header-right { display: flex; align-items: center; gap: 10px; }
   .privacy-pill {
     display: inline-flex;
     align-items: center;
@@ -631,6 +662,10 @@
     padding-bottom: env(safe-area-inset-bottom);
     transform: translateY(110%);
     transition: transform 280ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  .dark .bottom-bar {
+    background: rgba(30, 32, 36, 0.92);
+    box-shadow: 0 -2px 16px rgba(0, 0, 0, 0.3);
   }
   body.has-images .bottom-bar { transform: translateY(0); }
   .bottom-bar-inner {
@@ -1554,7 +1589,10 @@
         <div class="brand-text">pics<span>2</span>pdf</div>
       </button>
     </div>
-    <div>
+    <div class="header-right">
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle dark mode">
+        <i class="ph ph-moon" aria-hidden="true"></i>
+      </button>
       <span class="privacy-pill" title="Files never leave your device">
         <span class="dot"></span>
         <span class="label-text">Private — runs in your browser</span>
@@ -2025,6 +2063,7 @@ const els = {
   makePdf:      $('#make-pdf'),
   toasts:       $('#toasts'),
   brandBtn:     $('#brand-btn'),
+  themeToggleBtn: $('#theme-toggle'),
 
   drawer:        $('#drawer'),
   drawerOverlay: $('#drawer-overlay'),
@@ -2533,6 +2572,8 @@ function rotateAnnotationsCW(item) {
 }
 
 /* Brand reload guard */
+EPDFTheme.wireToggleButton(els.themeToggleBtn);
+
 els.brandBtn.addEventListener('click', async () => {
   if (state.items.length === 0) { location.reload(); return; }
   const ok = await showConfirm(
