@@ -11,6 +11,7 @@ window.EPDF = window.EPDF || {};
   const els = {};
 
   const state = {
+    view: 'dashboard',     // 'dashboard' | 'editor'
     pdfDoc: null,
     pageNumber: 1,
     zoomPercent: 100,
@@ -22,6 +23,8 @@ window.EPDF = window.EPDF || {};
     exportMode: 'flatten', // 'flatten' | 'editable'
     referencePhotoUrl: null, // object URL of the currently loaded reference photo, or null
     refView: { scale: 1, rotation: 0, tx: 0, ty: 0 },
+    currentTemplateId: null, // id of the saved template this session came from, or null (one-off edit)
+    pendingDeleteId: null,   // template id awaiting delete confirmation
   };
 
   const PAPER_SIZES = [
@@ -44,11 +47,13 @@ window.EPDF = window.EPDF || {};
 
   function cacheEls() {
     [
+      'dashboard-view', 'dash-empty', 'template-grid', 'new-template-btn',
+      'toolbar', 'split',
       'stage', 'dropzone', 'browse-btn', 'file-input',
       'page-wrap', 'page-canvas', 'field-overlay', 'pagebar', 'page-info', 'paper-size',
       'zoom-out', 'zoom-in', 'zoom-pct',
-      'docname', 'docname-title', 'doc-sep', 'autosave',
-      'theme-toggle', 'reference-btn', 'export-btn',
+      'docname', 'docname-title', 'doc-sep', 'autosave', 'templates-btn',
+      'theme-toggle', 'save-template-btn', 'reference-btn', 'export-btn',
       'tool-select', 'tool-text', 'tool-checkbox', 'tool-signature',
       'field-count-meta',
       'export-scrim', 'export-sheet', 'export-title', 'export-field-count',
@@ -58,6 +63,9 @@ window.EPDF = window.EPDF || {};
       'ref-photo', 'ref-photo-placeholder', 'ref-photo-img', 'ref-zoomctl',
       'ref-zoom-out', 'ref-zoom-in', 'ref-rotate', 'ref-fit',
       'ref-scratch', 'ref-copy-btn', 'ref-file-input',
+      'template-name-scrim', 'template-name-sheet', 'template-name-input',
+      'template-name-cancel', 'template-name-confirm',
+      'confirm-scrim', 'confirm-sheet', 'confirm-message', 'confirm-cancel', 'confirm-ok',
     ].forEach((id) => { els[toCamel(id)] = document.getElementById(id); });
   }
 
@@ -67,12 +75,26 @@ window.EPDF = window.EPDF || {};
 
   // ── file loading ────────────────────────────────────────────────
 
-  async function loadFile(file) {
-    const buffer = await file.arrayBuffer();
+  function updateAutosaveDefault() {
+    els.autosave.innerHTML = state.currentTemplateId
+      ? '<i class="ph ph-bookmark-simple-fill"></i>From a saved template'
+      : '<i class="ph ph-info"></i>Not saved as a template yet';
+  }
+
+  function flashAutosave(html) {
+    els.autosave.innerHTML = html;
+    setTimeout(updateAutosaveDefault, 2500);
+  }
+
+  // Shared by a fresh upload (loadFile) and reopening a saved template
+  // (openTemplate) — the only difference is where the bytes/fields come
+  // from. presetFields, when given, skips AcroForm auto-detection and
+  // replays the template's saved field layout instead (values blanked).
+  async function loadPdfIntoEditor(buffer, fileName, presetFields) {
     // pdf.js may transfer/detach the buffer it's given, so hand it a copy
     // and keep the pristine original for pdf-lib at export time.
     state.originalBytes = buffer.slice(0);
-    state.originalFileName = file.name.replace(/\.pdf$/i, '');
+    state.originalFileName = fileName;
     const pdfDoc = await PdfRender.loadPdf(buffer);
     state.pdfDoc = pdfDoc;
     state.pageNumber = 1;
@@ -80,22 +102,29 @@ window.EPDF = window.EPDF || {};
     state.store = FieldModel.createStore();
     state.store.subscribe(() => renderFieldCountMeta(state.store.list()));
 
-    // Auto-import any real, already-embedded AcroForm fields so the user
-    // can click and type immediately instead of drawing every field by
-    // hand. Detected fields behave identically to hand-drawn ones from
-    // here on — same model, same validation, same rendering.
-    const detected = await PdfRender.detectFormFields(pdfDoc);
-    detected.forEach((f) => state.store.add(f));
+    let detectedCount = 0;
+    if (presetFields) {
+      presetFields.forEach((f) => state.store.add({ page: f.page, rect: f.rect, name: f.name, type: f.type, value: '' }));
+    } else {
+      // Auto-import any real, already-embedded AcroForm fields so the user
+      // can click and type immediately instead of drawing every field by
+      // hand. Detected fields behave identically to hand-drawn ones from
+      // here on — same model, same validation, same rendering.
+      const detected = await PdfRender.detectFormFields(pdfDoc);
+      detected.forEach((f) => state.store.add(f));
+      detectedCount = detected.length;
+    }
     state.store.select(null);
 
+    showEditor();
     els.docname.hidden = false;
     els.docSep.hidden = false;
     els.docnameTitle.textContent = state.originalFileName;
+    els.templatesBtn.hidden = false;
     els.autosave.hidden = false;
-    if (detected.length) {
-      const defaultAutosaveText = els.autosave.innerHTML;
-      els.autosave.innerHTML = `<i class="ph ph-magic-wand"></i>Detected ${detected.length} existing field${detected.length === 1 ? '' : 's'}`;
-      setTimeout(() => { els.autosave.innerHTML = defaultAutosaveText; }, 3000);
+    updateAutosaveDefault();
+    if (detectedCount) {
+      flashAutosave(`<i class="ph ph-magic-wand"></i>Detected ${detectedCount} existing field${detectedCount === 1 ? '' : 's'}`);
     }
 
     if (state.editor) state.editor.destroy();
@@ -112,14 +141,21 @@ window.EPDF = window.EPDF || {};
     // viewport — otherwise a fast click-drag on a still-loading PDF could
     // start a gesture with no viewport to convert coordinates against.
     await rerenderPage();
-    els.dropzone.hidden = true;
     els.pageWrap.hidden = false;
     els.pagebar.hidden = false;
     els.exportBtn.disabled = false;
     els.exportBtn.title = '';
     els.referenceBtn.disabled = false;
     els.referenceBtn.title = '';
+    els.saveTemplateBtn.disabled = false;
+    els.saveTemplateBtn.title = '';
     renderFieldCountMeta(state.store.list());
+  }
+
+  async function loadFile(file) {
+    const buffer = await file.arrayBuffer();
+    state.currentTemplateId = null;
+    await loadPdfIntoEditor(buffer, file.name.replace(/\.pdf$/i, ''), null);
   }
 
   async function rerenderPage() {
@@ -160,6 +196,208 @@ window.EPDF = window.EPDF || {};
     els.fieldCountMeta.textContent = fields.length
       ? `${fields.length} field${fields.length === 1 ? '' : 's'} · ${filled} filled`
       : '';
+  }
+
+  // ── dashboard / templates ──────────────────────────────────────────
+
+  function showDashboard() {
+    state.view = 'dashboard';
+    state.currentTemplateId = null;
+    if (state.editor) { state.editor.destroy(); state.editor = null; }
+    state.pdfDoc = null;
+    state.store = null;
+    if (state.referencePhotoUrl) { URL.revokeObjectURL(state.referencePhotoUrl); state.referencePhotoUrl = null; }
+    els.refPanel.hidden = true;
+    els.referenceBtn.classList.remove('active');
+
+    els.dashboardView.hidden = false;
+    els.toolbar.hidden = true;
+    els.split.hidden = true;
+    els.docname.hidden = true;
+    els.docSep.hidden = true;
+    els.templatesBtn.hidden = true;
+    els.autosave.hidden = true;
+    els.referenceBtn.disabled = true;
+    els.referenceBtn.title = 'Load a PDF first';
+    els.exportBtn.disabled = true;
+    els.exportBtn.title = 'Load a PDF first';
+    els.saveTemplateBtn.disabled = true;
+    els.saveTemplateBtn.title = 'Load a PDF first';
+    renderTemplateGrid();
+  }
+
+  function showEditor() {
+    state.view = 'editor';
+    els.dashboardView.hidden = true;
+    els.toolbar.hidden = false;
+    els.split.hidden = false;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // Draws each field's rect as a tinted box on a fixed-white "page", scaled
+  // to the template's real page size — no static thumbnail image, matching
+  // the brief's "draw the boxes from field coordinates" rule. Uses the
+  // theme's --accent via the style attribute (not a presentation attribute)
+  // so it recolors correctly between light/dark.
+  function buildThumbnailSvg(fields, pageW, pageH) {
+    const stroke = Math.max(pageW, pageH) * 0.004;
+    const boxes = fields.map((f) => {
+      const y = pageH - f.rect.y - f.rect.h; // PDF is bottom-left/y-up; SVG is top-left/y-down
+      return `<rect x="${f.rect.x}" y="${y}" width="${f.rect.w}" height="${f.rect.h}" rx="2" style="fill:var(--accent);fill-opacity:.16;stroke:var(--accent);stroke-width:${stroke}" />`;
+    }).join('');
+    return `<svg viewBox="0 0 ${pageW} ${pageH}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true"><rect x="0" y="0" width="${pageW}" height="${pageH}" fill="#fff"/>${boxes}</svg>`;
+  }
+
+  async function renderTemplateGrid() {
+    const templates = await EPDF.TemplatesDb.listTemplates();
+    templates.sort((a, b) => b.updatedAt - a.updatedAt);
+    els.dashEmpty.hidden = templates.length > 0;
+    els.templateGrid.hidden = templates.length === 0;
+    els.templateGrid.innerHTML = templates.map((tmpl) => {
+      const pageSize = (tmpl.pageSizes && tmpl.pageSizes[0]) || { width: 612, height: 792 };
+      const fieldsOnPage1 = tmpl.fields.filter((f) => f.page === 1);
+      const name = escapeHtml(tmpl.name);
+      return `
+        <div class="tmpl-card" data-id="${tmpl.id}">
+          <button type="button" class="tmpl-open" data-open-id="${tmpl.id}">
+            <span class="tmpl-thumb">${buildThumbnailSvg(fieldsOnPage1, pageSize.width, pageSize.height)}</span>
+            <span class="tmpl-name">${name}</span>
+            <span class="tmpl-meta">${tmpl.fields.length} field${tmpl.fields.length === 1 ? '' : 's'}</span>
+          </button>
+          <button type="button" class="tmpl-delete" data-delete-id="${tmpl.id}" aria-label="Delete ${name}" title="Delete template">
+            <i class="ph ph-trash" aria-hidden="true"></i>
+          </button>
+        </div>`;
+    }).join('');
+  }
+
+  async function openTemplate(id) {
+    const record = await EPDF.TemplatesDb.loadTemplate(id);
+    if (!record) return;
+    const srcPdf = await EPDF.TemplatesDb.loadSourcePdf(record.sourcePdfId);
+    if (!srcPdf) return;
+    state.currentTemplateId = record.id;
+    await loadPdfIntoEditor(srcPdf.bytes.slice(0), record.name, record.fields);
+  }
+
+  function openConfirmDelete(id) {
+    state.pendingDeleteId = id;
+    const nameEl = els.templateGrid.querySelector(`.tmpl-card[data-id="${id}"] .tmpl-name`);
+    const name = nameEl ? nameEl.textContent : 'This template';
+    els.confirmMessage.textContent = `"${name}" and its saved field layout will be deleted. This can't be undone.`;
+    els.confirmScrim.hidden = false;
+    els.confirmSheet.hidden = false;
+  }
+  function closeConfirmSheet() {
+    els.confirmScrim.hidden = true;
+    els.confirmSheet.hidden = true;
+    state.pendingDeleteId = null;
+  }
+  async function confirmDelete() {
+    if (!state.pendingDeleteId) return;
+    await EPDF.TemplatesDb.deleteTemplate(state.pendingDeleteId);
+    closeConfirmSheet();
+    renderTemplateGrid();
+  }
+
+  async function openTemplateNameSheet() {
+    if (!state.pdfDoc) return;
+    let defaultName = state.originalFileName || 'Untitled template';
+    if (state.currentTemplateId) {
+      const existing = await EPDF.TemplatesDb.loadTemplate(state.currentTemplateId);
+      if (existing) defaultName = existing.name;
+    }
+    els.templateNameInput.value = defaultName;
+    els.templateNameScrim.hidden = false;
+    els.templateNameSheet.hidden = false;
+    els.templateNameInput.focus();
+    els.templateNameInput.select();
+  }
+  function closeTemplateNameSheet() {
+    els.templateNameScrim.hidden = true;
+    els.templateNameSheet.hidden = true;
+  }
+
+  async function confirmSaveTemplate() {
+    const name = (els.templateNameInput.value || '').trim();
+    if (!name) { els.templateNameInput.focus(); return; }
+
+    els.templateNameConfirm.disabled = true;
+    try {
+      const pageSizes = [];
+      for (let p = 1; p <= state.pdfDoc.numPages; p++) {
+        const page = await state.pdfDoc.getPage(p);
+        const vp = page.getViewport({ scale: 1 });
+        pageSizes.push({ width: vp.width, height: vp.height });
+      }
+      const fields = state.store.list().map((f) => ({ page: f.page, rect: { ...f.rect }, name: f.name, type: f.type, value: '' }));
+
+      // Reuse the existing source-PDF record when re-saving a template we
+      // already opened, rather than storing a duplicate copy of the bytes.
+      let sourcePdfId = null;
+      if (state.currentTemplateId) {
+        const existing = await EPDF.TemplatesDb.loadTemplate(state.currentTemplateId);
+        sourcePdfId = existing && existing.sourcePdfId;
+      }
+      if (!sourcePdfId) {
+        const stored = await EPDF.TemplatesDb.storeSourcePdf({
+          bytes: state.originalBytes,
+          originalFilename: `${state.originalFileName || 'template'}.pdf`,
+        });
+        sourcePdfId = stored.id;
+      }
+
+      const saved = await EPDF.TemplatesDb.saveTemplate({
+        id: state.currentTemplateId || undefined,
+        name,
+        sourcePdfId,
+        pageCount: state.pdfDoc.numPages,
+        pageSizes,
+        fields,
+      });
+      state.currentTemplateId = saved.id;
+
+      closeTemplateNameSheet();
+      flashAutosave('<i class="ph ph-check-circle"></i>Template saved');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      els.templateNameConfirm.disabled = false;
+    }
+  }
+
+  function wireDashboard() {
+    els.templatesBtn.addEventListener('click', showDashboard);
+    els.newTemplateBtn.addEventListener('click', () => els.fileInput.click());
+    els.templateGrid.addEventListener('click', (e) => {
+      const delBtn = e.target.closest('[data-delete-id]');
+      if (delBtn) { openConfirmDelete(delBtn.dataset.deleteId); return; }
+      const openBtn = e.target.closest('[data-open-id]');
+      if (openBtn) openTemplate(openBtn.dataset.openId);
+    });
+
+    els.saveTemplateBtn.addEventListener('click', openTemplateNameSheet);
+    els.templateNameCancel.addEventListener('click', closeTemplateNameSheet);
+    els.templateNameScrim.addEventListener('click', closeTemplateNameSheet);
+    els.templateNameConfirm.addEventListener('click', confirmSaveTemplate);
+    els.templateNameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') confirmSaveTemplate();
+    });
+
+    els.confirmCancel.addEventListener('click', closeConfirmSheet);
+    els.confirmScrim.addEventListener('click', closeConfirmSheet);
+    els.confirmOk.addEventListener('click', confirmDelete);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!els.templateNameSheet.hidden) closeTemplateNameSheet();
+      else if (!els.confirmSheet.hidden) closeConfirmSheet();
+    });
   }
 
   // ── init ────────────────────────────────────────────────────────
@@ -266,9 +504,7 @@ window.EPDF = window.EPDF || {};
         : await EPDF.PdfExport.flattenAndExport(state.originalBytes, fields);
       triggerDownload(bytes, filename);
       closeExportSheet();
-      const prevText = els.autosave.innerHTML;
-      els.autosave.innerHTML = '<i class="ph ph-check-circle"></i>Exported';
-      setTimeout(() => { els.autosave.innerHTML = prevText; }, 2500);
+      flashAutosave('<i class="ph ph-check-circle"></i>Exported');
     } catch (err) {
       console.error(err);
       els.exportFieldCount.textContent = `Export failed: ${err && err.message ? err.message : 'unknown error'}`;
@@ -411,6 +647,8 @@ window.EPDF = window.EPDF || {};
     wireResize();
     wireExportSheet();
     wireReferencePanel();
+    wireDashboard();
     EPDFTheme.wireToggleButton(els.themeToggle);
+    showDashboard();
   });
 })();

@@ -35,16 +35,22 @@
       <span>Also in this suite</span>
       <span class="sibwm">pics<b>2</b>pdf</span>
     </div>
+    <button class="btn subtle" id="templates-btn" type="button" hidden>
+      <i class="ph ph-squares-four"></i>Templates
+    </button>
     <div class="tsep" id="doc-sep" hidden></div>
     <div class="docname" id="docname" hidden>
       <i class="ph ph-file-pdf" style="font-size:15px"></i><b id="docname-title"></b>
     </div>
     <div class="spacer"></div>
     <span class="autosave" id="autosave" hidden>
-      <i class="ph ph-info"></i>Not saved — templates arrive in a later milestone
+      <i class="ph ph-info"></i>Not saved as a template yet
     </span>
     <button class="btn icon" id="theme-toggle" type="button" aria-label="Toggle dark mode">
       <i class="ph ph-moon" aria-hidden="true"></i>
+    </button>
+    <button class="btn" id="save-template-btn" type="button" disabled title="Load a PDF first">
+      <i class="ph ph-bookmark-simple"></i>Save as template
     </button>
     <button class="btn" id="reference-btn" type="button" disabled title="Load a PDF first">
       <i class="ph ph-image-square"></i>Reference
@@ -54,7 +60,31 @@
     </button>
   </header>
 
-  <div class="toolbar">
+  <div class="dashboard" id="dashboard-view">
+    <div class="dash-head">
+      <div>
+        <h1 class="h1">Templates</h1>
+        <p class="sub">Field positions are saved per template. Values reset each time you open one.</p>
+      </div>
+      <button class="btn primary" id="new-template-btn" type="button">
+        <i class="ph-bold ph-plus"></i>New template
+      </button>
+    </div>
+
+    <p class="dash-empty" id="dash-empty" hidden>No saved templates yet — fill out a PDF below, then save it as a template to see it here.</p>
+    <div class="template-grid" id="template-grid" hidden></div>
+
+    <div class="eyebrow dash-section-label">One-off edit</div>
+    <div class="dropzone" id="dropzone">
+      <i class="ph ph-file-arrow-down" aria-hidden="true"></i>
+      <div class="t">Drop a PDF here to edit it once</div>
+      <div class="s">Existing form fields are detected automatically. Nothing is saved unless you turn it into a template.</div>
+      <button class="btn" id="browse-btn" type="button"><i class="ph ph-folder-open"></i>Browse files</button>
+    </div>
+    <input type="file" id="file-input" accept="application/pdf" hidden />
+  </div>
+
+  <div class="toolbar" id="toolbar" hidden>
     <button class="tool on" id="tool-select" type="button"><i class="ph ph-cursor"></i>Select</button>
     <button class="tool" id="tool-text" type="button"><i class="ph ph-textbox"></i>Text field</button>
     <button class="tool" id="tool-checkbox" type="button" disabled title="Arrives in a later milestone"><i class="ph ph-check-square"></i>Checkbox</button>
@@ -63,7 +93,7 @@
     <span class="meta" id="field-count-meta"></span>
   </div>
 
-  <div class="split">
+  <div class="split" id="split" hidden>
     <div class="stage" id="stage">
       <div class="pagebar" id="pagebar" hidden>
         <span id="page-info">Page 1 of 1</span>
@@ -79,14 +109,6 @@
         <canvas class="page-canvas" id="page-canvas"></canvas>
         <div class="field-overlay" id="field-overlay"></div>
       </div>
-
-      <div class="dropzone" id="dropzone">
-        <i class="ph ph-file-arrow-down" aria-hidden="true"></i>
-        <div class="t">Drop a PDF here to edit it</div>
-        <div class="s">Place fields anywhere, or fill fields the PDF already has. Works with any PDF.</div>
-        <button class="btn" id="browse-btn" type="button"><i class="ph ph-folder-open"></i>Browse files</button>
-      </div>
-      <input type="file" id="file-input" accept="application/pdf" hidden />
     </div>
 
     <div class="rpanel" id="ref-panel" hidden>
@@ -161,6 +183,39 @@
         <i class="ph-bold ph-download-simple" aria-hidden="true"></i>
         Export
       </button>
+    </div>
+  </div>
+
+  <div class="scrim" id="template-name-scrim" hidden></div>
+  <div class="sheet" id="template-name-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="template-name-title">
+    <div class="sheet-h">
+      <h3 id="template-name-title">Save as template</h3>
+      <p class="sub" style="font-size:12px;margin-top:4px;">Field positions and names are saved. Values reset each time you open it.</p>
+    </div>
+    <div class="sheet-b">
+      <div class="prop">
+        <span class="pl">Template name</span>
+        <input type="text" class="inp" id="template-name-input" spellcheck="false" />
+      </div>
+    </div>
+    <div class="sheet-f">
+      <button class="btn" id="template-name-cancel" type="button">Cancel</button>
+      <button class="btn primary" id="template-name-confirm" type="button">
+        <i class="ph-bold ph-bookmark-simple" aria-hidden="true"></i>
+        Save template
+      </button>
+    </div>
+  </div>
+
+  <div class="scrim" id="confirm-scrim" hidden></div>
+  <div class="sheet narrow" id="confirm-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="sheet-h">
+      <h3 id="confirm-title">Delete template?</h3>
+      <p class="sub" id="confirm-message" style="font-size:12px;margin-top:4px;"></p>
+    </div>
+    <div class="sheet-f">
+      <button class="btn" id="confirm-cancel" type="button">Cancel</button>
+      <button class="btn danger" id="confirm-ok" type="button">Delete</button>
     </div>
   </div>
 
