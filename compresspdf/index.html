@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="/theme.js"></script>
+<title>Everything PDF — CompressPDF</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 56'><rect x='1' y='1' width='54' height='54' rx='9' fill='%2312784a'/><rect x='11' y='12' width='34' height='9' fill='white'/><rect x='11' y='35' width='34' height='9' fill='white'/><rect x='17' y='25.4' width='22' height='5.2' fill='white' opacity='.55'/></svg>" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<link rel="stylesheet" href="/compresspdf/styles.css" />
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <a class="back-btn" href="/index.html" aria-label="Back to Everything PDF home">
+      <i class="ph ph-arrow-left"></i>
+    </a>
+    <a class="lockup" href="/compresspdf/index.html" aria-label="Back to CompressPDF home">
+      <svg width="26" height="26" viewBox="0 0 56 56" aria-hidden="true">
+        <rect x="1" y="1" width="54" height="54" rx="9" fill="#12784a"/>
+        <rect x="11" y="12" width="34" height="9" fill="#fff"/>
+        <rect x="11" y="35" width="34" height="9" fill="#fff"/>
+        <rect x="17" y="25.4" width="22" height="5.2" fill="#fff" opacity=".55"/>
+      </svg>
+      <div class="wm">compress<b>pdf</b></div>
+    </a>
+    <div class="family">
+      <span>Also in this suite</span>
+      <a class="sibwm" href="/everything-pdf/index.html"><b style="color:#4338ca">pdf</b>editor</a>
+      <a class="sibwm" href="/pics2pdf/index.html">pics<b>2</b>pdf</a>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn icon" id="theme-toggle" type="button" aria-label="Toggle dark mode">
+      <i class="ph ph-moon" aria-hidden="true"></i>
+    </button>
+  </header>
+
+  <div class="cwrap">
+    <div class="ccol" id="screen-picker">
+      <div>
+        <h1 class="h1">Compress a PDF</h1>
+        <p class="sub">Drop the file, pick a level, download. Pages, text and field data stay as they are.</p>
+      </div>
+
+      <div class="error-note" id="error-note" hidden>
+        <i class="ph ph-warning-circle" aria-hidden="true"></i>
+        <span id="error-text"></span>
+      </div>
+
+      <div class="dropzone" id="dropzone">
+        <i class="ph ph-file-arrow-down" aria-hidden="true"></i>
+        <div class="t">Drop a PDF here</div>
+        <div class="s">Nothing uploads — parsing and compression both happen in your browser.</div>
+        <button class="btn" id="browse-btn" type="button" style="margin-top:6px"><i class="ph ph-folder-open"></i>Browse files</button>
+      </div>
+      <input type="file" id="file-input" accept="application/pdf" hidden />
+
+      <div class="filecard" id="filecard" hidden>
+        <i class="ph ph-file-pdf" aria-hidden="true"></i>
+        <div style="flex:1;min-width:0">
+          <div class="fn" id="fc-name"></div>
+          <div class="fm" id="fc-meta"></div>
+        </div>
+        <button class="btn sm" id="replace-btn" type="button"><i class="ph ph-arrows-clockwise"></i>Replace</button>
+        <button class="btn sm icon" id="clear-btn" type="button" style="width:28px" aria-label="Remove file"><i class="ph ph-x"></i></button>
+      </div>
+      <input type="file" id="replace-input" accept="application/pdf" hidden />
+
+      <div id="level-section" hidden>
+        <div class="eyebrow" style="margin-bottom:11px">Compression level</div>
+        <div class="levels" id="levels"></div>
+      </div>
+
+      <div class="panel sizechart" id="sizechart" hidden>
+        <div class="eyebrow" style="margin-bottom:13px">Size comparison</div>
+        <div class="scplot" id="sc-plot">
+          <div class="scbars">
+            <div class="scbar-col">
+              <div class="scval" id="sc-before-val"></div>
+              <div class="scbar before" id="sc-before-bar"></div>
+              <div class="sclabel">Current</div>
+            </div>
+            <div class="scbar-col">
+              <div class="scval" id="sc-after-val"></div>
+              <div class="scbar after" id="sc-after-bar"></div>
+              <div class="sclabel" id="sc-after-label">After</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divide" id="footer-divide" hidden></div>
+      <div id="footer-row" hidden style="display:flex;align-items:center;gap:14px">
+        <div class="note" style="flex:1"><i class="ph ph-info"></i><span>Estimates come from reading the file, not from compressing it. Actual size is usually within a few percent.</span></div>
+        <button class="btn primary" id="compress-btn" type="button" style="height:38px;padding:0 17px" disabled></button>
+      </div>
+    </div>
+
+    <div class="ccol" id="screen-result" hidden>
+      <div>
+        <h1 class="h1">Compressed</h1>
+        <p class="sub" id="result-sub"></p>
+      </div>
+
+      <div class="bigsave">
+        <div class="pct" id="result-pct"></div>
+        <div style="flex:1">
+          <div class="bt" id="result-bt"></div>
+          <div class="bs" id="result-bs"></div>
+        </div>
+        <button class="btn primary" id="download-btn" type="button" style="height:38px;padding:0 17px"><i class="ph-bold ph-download-simple"></i>Download</button>
+      </div>
+
+      <div class="panel" style="padding:16px 17px;display:flex;flex-direction:column;gap:15px">
+        <div class="cmpbar">
+          <div class="cl"><span>Original</span><b id="result-orig"></b></div>
+          <div class="bar"><i style="width:100%;background:var(--border-strong)"></i></div>
+        </div>
+        <div class="cmpbar">
+          <div class="cl"><span>Compressed</span><b id="result-new"></b></div>
+          <div class="bar"><i id="result-newbar" style="width:0%"></i></div>
+        </div>
+        <div class="divide"></div>
+        <div id="result-rows" style="display:flex;flex-direction:column;gap:1px"></div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:9px">
+        <button class="btn" id="preview-btn" type="button"><i class="ph ph-eye"></i>Preview result</button>
+        <button class="btn" id="retry-btn" type="button"><i class="ph ph-arrow-counter-clockwise"></i>Try another level</button>
+        <div style="flex:1"></div>
+        <button class="btn" id="another-btn" type="button"><i class="ph ph-plus"></i>Compress another file</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/compresspdf/js/estimate.js"></script>
+<script src="/compresspdf/js/compress.js"></script>
+<script src="/compresspdf/js/app.js"></script>
+</body>
+</html>

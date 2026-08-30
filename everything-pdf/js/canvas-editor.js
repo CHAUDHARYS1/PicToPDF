@@ -8,8 +8,10 @@ EPDF.CanvasEditor = (function () {
   const PdfRender = EPDF.PdfRender;
   const DRAG_THRESHOLD = 4; // px — below this, a pointerdown+up on a field is a click-to-edit, not a drag
   const MIN_DRAG_SIZE = 6; // px — ghost boxes smaller than this on release are discarded as accidental clicks
+  const DEFAULT_CHECKBOX_SIZE = 16; // pt — roughly matches a real AcroForm checkbox widget
+  const NON_EDITABLE_TYPES = ['checkbox', 'radio', 'select']; // never enter the text-input editing mode
 
-  function create({ overlayEl, store, getViewport }) {
+  function create({ overlayEl, store, getViewport, getPageNumber }) {
     const nodes = new Map(); // fieldId -> HTMLElement
     let tool = 'select';
     let editingFieldId = null;
@@ -38,7 +40,7 @@ EPDF.CanvasEditor = (function () {
       // grows during editing receives focus.
       el.addEventListener('focus', () => {
         const f = store.get(field.id);
-        if (!f || f.type === 'checkbox') return;
+        if (!f || NON_EDITABLE_TYPES.includes(f.type)) return;
         if (editingFieldId === f.id) return;
         const selected = store.getSelected();
         if (!selected || selected.id !== f.id) store.select(f.id);
@@ -52,20 +54,23 @@ EPDF.CanvasEditor = (function () {
       const isSelected = opts.selected;
       const isEditing = opts.editing;
       const isCheckbox = field.type === 'checkbox';
+      const isRadio = field.type === 'radio';
+      const isSelect = field.type === 'select';
 
       el.className = 'fld' +
         (field.type === 'number' ? ' num' : '') +
-        (isCheckbox ? ' checkbox' : '') +
+        (isCheckbox || isRadio ? ' checkbox' : '') +
+        (isSelect ? ' select' : '') +
         (isSelected ? ' active' : '') +
         (!field.value && !isEditing ? ' empty' : '');
 
       // The wrapper div is the field's own tab-stop when idle, so Tab/
       // Shift+Tab can reach a field it hasn't clicked into yet. Once
       // editing starts, the <input> becomes the real tab-stop, so the
-      // wrapper drops out of tab order rather than doubling it. Checkboxes
-      // skip this entirely — their native <input type=checkbox> is already
-      // focusable on its own.
-      if (!isCheckbox) {
+      // wrapper drops out of tab order rather than doubling it. Checkbox/
+      // radio/select fields skip this entirely — their native control is
+      // already focusable on its own.
+      if (!NON_EDITABLE_TYPES.includes(field.type)) {
         el.tabIndex = isEditing ? -1 : 0;
       } else {
         el.removeAttribute('tabindex');
@@ -99,13 +104,34 @@ EPDF.CanvasEditor = (function () {
         input.focus();
         const len = input.value.length;
         input.setSelectionRange(len, len);
-      } else if (field.type === 'checkbox') {
+      } else if (isCheckbox || isRadio) {
         const cb = document.createElement('input');
-        cb.type = 'checkbox';
+        cb.type = isRadio ? 'radio' : 'checkbox';
+        // Shared `name` gives free native mutual-exclusion within the group
+        // (the field-model store enforces the same thing at the data level,
+        // for pages the group's other options aren't currently shown on —
+        // see field-model.js's update()).
+        if (isRadio) cb.name = 'epdf-radio-' + field.name;
         cb.checked = field.value === 'true';
         cb.addEventListener('pointerdown', (e) => e.stopPropagation());
         cb.addEventListener('change', () => store.update(field.id, { value: cb.checked ? 'true' : '' }));
         el.appendChild(cb);
+      } else if (isSelect) {
+        const sel = document.createElement('select');
+        sel.addEventListener('pointerdown', (e) => e.stopPropagation());
+        const blank = document.createElement('option');
+        blank.value = '';
+        blank.textContent = '—';
+        sel.appendChild(blank);
+        (field.options || []).forEach((o) => {
+          const opt = document.createElement('option');
+          opt.value = o.value;
+          opt.textContent = o.label;
+          sel.appendChild(opt);
+        });
+        sel.value = field.value || '';
+        sel.addEventListener('change', () => store.update(field.id, { value: sel.value }));
+        el.appendChild(sel);
       } else {
         const span = document.createElement('span');
         span.textContent = field.value || '';
@@ -169,7 +195,7 @@ EPDF.CanvasEditor = (function () {
 
     function fullLayout() {
       const viewport = currentViewport();
-      const fields = readingOrder(store.list());
+      const fields = readingOrder(store.byPage(getPageNumber()));
       const seen = new Set();
       const selected = store.getSelected();
 
@@ -320,10 +346,32 @@ EPDF.CanvasEditor = (function () {
       // empty background
       if (tool === 'draw-text') {
         startDraw(e);
+      } else if (tool === 'draw-checkbox') {
+        placeCheckbox(e);
       } else if (tool === 'select') {
         if (editingFieldId) exitEditing();
         store.select(null);
       }
+    }
+
+    // Checkboxes are click-to-place at a fixed default size (real checkbox
+    // widgets are small and roughly square) rather than drag-to-size like a
+    // text field — one click, done, then resize/move like any other field
+    // if the default doesn't fit.
+    function placeCheckbox(e) {
+      e.preventDefault();
+      const viewport = currentViewport();
+      const p = overlayPoint(e);
+      const center = PdfRender.screenPointToPdf(viewport, p.x, p.y);
+      const rect = {
+        x: center.x - DEFAULT_CHECKBOX_SIZE / 2,
+        y: center.y - DEFAULT_CHECKBOX_SIZE / 2,
+        w: DEFAULT_CHECKBOX_SIZE,
+        h: DEFAULT_CHECKBOX_SIZE,
+      };
+      const n = store.list().length + 1;
+      const field = store.add({ page: getPageNumber(), rect, type: 'checkbox', name: 'Field ' + n });
+      store.select(field.id);
     }
 
     function armClickOrDrag(e, fieldId, fieldEl) {
@@ -481,7 +529,7 @@ EPDF.CanvasEditor = (function () {
           const viewport = currentViewport();
           const rect = PdfRender.screenToRect(viewport, box);
           const n = store.list().length + 1;
-          const field = store.add({ page: 1, rect, type: 'text', name: 'Field ' + n });
+          const field = store.add({ page: getPageNumber(), rect, type: 'text', name: 'Field ' + n });
           enterEditing(field.id);
         }
       );
@@ -519,7 +567,7 @@ EPDF.CanvasEditor = (function () {
 
     function setTool(next) {
       tool = next;
-      overlayEl.classList.toggle('tool-draw-text', tool === 'draw-text');
+      overlayEl.classList.toggle('tool-place-field', tool === 'draw-text' || tool === 'draw-checkbox');
     }
 
     function getTool() { return tool; }

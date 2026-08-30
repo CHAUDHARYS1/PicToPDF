@@ -40,7 +40,7 @@ window.EPDF = window.EPDF || {};
     editor: null,
     annotationStore: null,
     annotationEditor: null,
-    pageRotation: 0,       // additional user-applied rotation (0/90/180/270), on top of the page's own
+    pageRotations: {},     // { [pageNumber]: additional user-applied rotation (0/90/180/270) }, on top of the page's own
     originalBytes: null,   // pristine ArrayBuffer of the loaded PDF, for pdf-lib export
     originalFileName: '',
     exportMode: 'flatten', // 'flatten' | 'editable'
@@ -74,7 +74,9 @@ window.EPDF = window.EPDF || {};
       'resume-banner', 'resume-sub', 'resume-btn', 'resume-discard-btn',
       'toolbar', 'split',
       'stage', 'dropzone', 'browse-btn', 'file-input',
+      'pages-panel', 'pages-list',
       'page-wrap', 'page-canvas', 'draw-canvas', 'field-overlay', 'pagebar', 'page-info', 'paper-size',
+      'page-prev', 'page-next',
       'zoom-out', 'zoom-in', 'zoom-pct', 'rotate-btn',
       'docname', 'docname-title', 'doc-sep', 'autosave', 'templates-btn',
       'theme-toggle', 'fullscreen-btn', 'print-btn', 'save-template-btn', 'reference-btn', 'export-btn',
@@ -127,9 +129,9 @@ window.EPDF = window.EPDF || {};
     state.pdfDoc = pdfDoc;
     state.pageNumber = opts.pageNumber || 1;
     state.zoomPercent = loadSavedZoom();
-    state.pageRotation = opts.pageRotation || 0;
+    state.pageRotations = opts.pageRotations || {};
     state.store = FieldModel.createStore();
-    state.store.subscribe(() => { renderFieldCountMeta(state.store.list()); updateUndoButton(); scheduleAutosave(); });
+    state.store.subscribe(() => { updateFieldCountMeta(); updateUndoButton(); scheduleAutosave(); });
     state.annotationStore = Annotations.createStore();
     state.annotationStore.subscribe(() => { updateUndoButton(); updateDrawDeleteButton(); scheduleAutosave(); });
 
@@ -173,6 +175,7 @@ window.EPDF = window.EPDF || {};
       overlayEl: els.fieldOverlay,
       store: state.store,
       getViewport: () => state.viewport,
+      getPageNumber: () => state.pageNumber,
     });
 
     if (state.annotationEditor) state.annotationEditor.destroy();
@@ -203,9 +206,10 @@ window.EPDF = window.EPDF || {};
     els.printBtn.title = '';
     els.fullscreenBtn.disabled = false;
     els.fullscreenBtn.title = '';
-    renderFieldCountMeta(state.store.list());
+    updateFieldCountMeta();
     updateUndoButton();
     updateDrawDeleteButton();
+    renderPagesPanel();
   }
 
   async function loadFile(file) {
@@ -216,29 +220,121 @@ window.EPDF = window.EPDF || {};
   }
 
   async function rerenderPage() {
+    // Cleared up front, not just reassigned once the render resolves: while
+    // this await is in flight, state.viewport would otherwise still point
+    // at the *previous* page's viewport, so a gesture that starts in that
+    // window (e.g. a fast keyboard PageDown immediately followed by a drag)
+    // would silently compute coordinates against the wrong page. Every
+    // gesture start already bails out when getViewport() is falsy — this
+    // just makes that guard actually cover the gap.
+    state.viewport = null;
+    const rotation = state.pageRotations[state.pageNumber] || 0;
     const targetCssWidth = Math.max(200, Math.min(620, els.stage.clientWidth - 40));
     const { page, viewport } = await PdfRender.renderPage(state.pdfDoc, state.pageNumber, els.pageCanvas, {
       targetCssWidth,
       zoomPercent: state.zoomPercent,
-      rotation: state.pageRotation,
+      rotation,
     });
     state.viewport = viewport;
     els.pageWrap.style.width = Math.floor(viewport.width) + 'px';
     els.pageWrap.style.height = Math.floor(viewport.height) + 'px';
 
     els.pageInfo.textContent = `Page ${state.pageNumber} of ${state.pdfDoc.numPages}`;
-    const unscaled = page.getViewport({ scale: 1, rotation: (page.rotate + state.pageRotation) % 360 });
+    const unscaled = page.getViewport({ scale: 1, rotation: (page.rotate + rotation) % 360 });
     els.paperSize.textContent = paperSizeLabel(unscaled.width, unscaled.height);
     els.zoomPct.textContent = state.zoomPercent + '%';
 
     if (state.editor) state.editor.layout();
     if (state.annotationEditor) state.annotationEditor.layout();
+    updatePageNavButtons();
+    updatePagesPanelActive();
+    updateFieldCountMeta();
   }
 
   function rotatePage() {
-    state.pageRotation = (state.pageRotation + 90) % 360;
+    const current = state.pageRotations[state.pageNumber] || 0;
+    state.pageRotations[state.pageNumber] = (current + 90) % 360;
     rerenderPage();
     scheduleAutosave();
+  }
+
+  // ── page navigator (prev/next + left-side thumbnail sidebar) ──────
+
+  function goToPage(n) {
+    if (!state.pdfDoc) return;
+    const target = Math.max(1, Math.min(state.pdfDoc.numPages, n));
+    if (target === state.pageNumber) return;
+    state.pageNumber = target;
+    rerenderPage();
+    scheduleAutosave();
+  }
+
+  function updatePageNavButtons() {
+    if (!state.pdfDoc) return;
+    els.pagePrev.disabled = state.pageNumber <= 1;
+    els.pageNext.disabled = state.pageNumber >= state.pdfDoc.numPages;
+  }
+
+  function updatePagesPanelActive() {
+    els.pagesList.querySelectorAll('.page-item').forEach((item) => {
+      item.classList.toggle('on', Number(item.dataset.page) === state.pageNumber);
+    });
+  }
+
+  // Rebuilds the sidebar's page list for the just-loaded document, then
+  // fills in each thumbnail asynchronously (rendering is cheap per page,
+  // but doing all of them synchronously would delay the first paint).
+  async function renderPagesPanel() {
+    const numPages = state.pdfDoc.numPages;
+    els.pagesPanel.hidden = numPages <= 1;
+    els.pagesList.innerHTML = '';
+    if (numPages <= 1) return;
+
+    const pdfDoc = state.pdfDoc;
+    for (let p = 1; p <= numPages; p++) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'page-item';
+      item.dataset.page = String(p);
+      item.setAttribute('aria-label', `Go to page ${p}`);
+      item.innerHTML = `
+        <span class="thumb"><i class="ph ph-file-pdf" aria-hidden="true"></i></span>
+        <span class="label">${p}</span>`;
+      els.pagesList.appendChild(item);
+    }
+    updatePagesPanelActive();
+
+    for (let p = 1; p <= numPages; p++) {
+      if (state.pdfDoc !== pdfDoc) return; // a different PDF loaded while thumbnails were still rendering
+      try {
+        const dataUrl = await PdfRender.renderPageThumbnail(pdfDoc, p, 220);
+        if (state.pdfDoc !== pdfDoc) return;
+        const item = els.pagesList.querySelector(`.page-item[data-page="${p}"]`);
+        if (item) item.querySelector('.thumb').innerHTML = `<img src="${dataUrl}" alt="" />`;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }
+
+  function wirePageNav() {
+    els.pagePrev.addEventListener('click', () => goToPage(state.pageNumber - 1));
+    els.pageNext.addEventListener('click', () => goToPage(state.pageNumber + 1));
+    els.pagesList.addEventListener('click', (e) => {
+      const item = e.target.closest('.page-item');
+      if (item) goToPage(Number(item.dataset.page));
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'PageUp' && e.key !== 'PageDown') return;
+      if (!state.pdfDoc) return;
+      const active = document.activeElement;
+      const typing = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT' || active.isContentEditable);
+      if (typing) return;
+      if (!els.exportSheet.hidden || !els.templateNameSheet.hidden || !els.confirmSheet.hidden) return;
+      e.preventDefault();
+      goToPage(state.pageNumber + (e.key === 'PageDown' ? 1 : -1));
+    });
   }
 
   // ── autosave / resume-in-progress-work ───────────────────────────
@@ -259,7 +355,7 @@ window.EPDF = window.EPDF || {};
         originalFileName: state.originalFileName,
         currentTemplateId: state.currentTemplateId,
         pageNumber: state.pageNumber,
-        pageRotation: state.pageRotation,
+        pageRotations: state.pageRotations,
         fields: state.store ? state.store.list() : [],
         annotations: state.annotationStore ? state.annotationStore.list() : [],
       });
@@ -298,7 +394,7 @@ window.EPDF = window.EPDF || {};
     await loadPdfIntoEditor(session.originalBytes.slice(0), session.originalFileName, session.fields, {
       preserveValues: true,
       annotations: session.annotations,
-      pageRotation: session.pageRotation,
+      pageRotations: session.pageRotations || {},
       pageNumber: session.pageNumber,
     });
     els.resumeBanner.hidden = true;
@@ -313,12 +409,13 @@ window.EPDF = window.EPDF || {};
 
   function setTool(tool) {
     // 'draw' is handled entirely by the annotation editor on its own canvas
-    // layer — canvas-editor only ever sees 'select'/'draw-text', so it's
-    // told 'select' whenever draw mode is active (keeps its own gestures
-    // idle without needing it to know a third tool exists).
+    // layer — canvas-editor only ever sees 'select'/'draw-text'/'draw-checkbox',
+    // so it's told 'select' whenever draw mode is active (keeps its own
+    // gestures idle without needing it to know that tool exists).
     if (state.editor) state.editor.setTool(tool === 'draw' ? 'select' : tool);
     els.toolSelect.classList.toggle('on', tool === 'select');
     els.toolText.classList.toggle('on', tool === 'draw-text');
+    els.toolCheckbox.classList.toggle('on', tool === 'draw-checkbox');
     els.toolDraw.classList.toggle('on', tool === 'draw');
     els.fieldOverlay.classList.toggle('tool-draw', tool === 'draw');
     els.drawToolbar.hidden = tool !== 'draw';
@@ -384,12 +481,38 @@ window.EPDF = window.EPDF || {};
     els.undoBtn.disabled = !canUndo;
   }
 
+  // Finds which page differs between two field/shape-store snapshots (both
+  // are arrays of {id, page, ...}), by comparing item-for-item on id — an
+  // undo can add, remove, or change a field/shape, and whichever page that
+  // item lives on is the page the undo actually affected.
+  function pageAffectedByChange(beforeItems, afterItems) {
+    const beforeMap = new Map(beforeItems.map((it) => [it.id, it]));
+    const afterMap = new Map(afterItems.map((it) => [it.id, it]));
+    for (const [id, item] of afterMap) {
+      const prev = beforeMap.get(id);
+      if (!prev || JSON.stringify(prev) !== JSON.stringify(item)) return item.page;
+    }
+    for (const [id, item] of beforeMap) {
+      if (!afterMap.has(id)) return item.page;
+    }
+    return null;
+  }
+
   function performUndo() {
     const fieldTs = state.store ? state.store.lastUndoTimestamp() : 0;
     const annTs = state.annotationStore ? state.annotationStore.lastUndoTimestamp() : 0;
     if (!fieldTs && !annTs) return;
-    if (annTs > fieldTs) state.annotationStore.undo();
-    else state.store.undo();
+
+    const store = annTs > fieldTs ? state.annotationStore : state.store;
+    const before = store.list();
+    store.undo();
+    const after = store.list();
+
+    // Jump to the page the undone change actually lives on — otherwise
+    // undoing an edit on a page you've since navigated away from does
+    // nothing visible and looks like undo silently failed.
+    const page = pageAffectedByChange(before, after);
+    if (page && page !== state.pageNumber) goToPage(page);
   }
 
   function changeZoom(delta) {
@@ -398,12 +521,15 @@ window.EPDF = window.EPDF || {};
     rerenderPage();
   }
 
-  // ── toolbar field-count readout ─────────────────────────────────
+  // ── toolbar field-count readout (current page only — a document-wide
+  // total isn't very actionable once a form spans several pages, since the
+  // page you're looking at is the one you can actually do anything about) ──
 
-  function renderFieldCountMeta(fields) {
+  function updateFieldCountMeta() {
+    const fields = state.store ? state.store.byPage(state.pageNumber) : [];
     const filled = fields.filter((f) => f.value).length;
     els.fieldCountMeta.textContent = fields.length
-      ? `${fields.length} field${fields.length === 1 ? '' : 's'} · ${filled} filled`
+      ? `${fields.length} field${fields.length === 1 ? '' : 's'} on this page · ${filled} filled`
       : '';
   }
 
@@ -422,7 +548,7 @@ window.EPDF = window.EPDF || {};
     state.pdfDoc = null;
     state.store = null;
     state.annotationStore = null;
-    state.pageRotation = 0;
+    state.pageRotations = {};
     if (state.referencePhotoUrl) { URL.revokeObjectURL(state.referencePhotoUrl); state.referencePhotoUrl = null; }
     els.refPanel.hidden = true;
     els.referenceBtn.classList.remove('active');
@@ -431,6 +557,8 @@ window.EPDF = window.EPDF || {};
     els.toolbar.hidden = true;
     els.drawToolbar.hidden = true;
     els.split.hidden = true;
+    els.pagesPanel.hidden = true;
+    els.pagesList.innerHTML = '';
     els.docname.hidden = true;
     els.docSep.hidden = true;
     els.templatesBtn.hidden = true;
@@ -531,7 +659,9 @@ window.EPDF = window.EPDF || {};
     if (!srcPdf) return;
     state.currentTemplateId = record.id;
     await EPDF.TemplatesDb.clearSession().catch((err) => console.error(err)); // starting fresh — any stale resumable session no longer applies
-    await loadPdfIntoEditor(srcPdf.bytes.slice(0), record.name, record.fields);
+    await loadPdfIntoEditor(srcPdf.bytes.slice(0), record.name, record.fields, {
+      pageRotations: record.pageRotations || {},
+    });
   }
 
   function openConfirmDelete(id) {
@@ -584,7 +714,11 @@ window.EPDF = window.EPDF || {};
         const vp = page.getViewport({ scale: 1 });
         pageSizes.push({ width: vp.width, height: vp.height });
       }
-      const fields = state.store.list().map((f) => ({ page: f.page, rect: { ...f.rect }, name: f.name, type: f.type, value: '' }));
+      const fields = state.store.list().map((f) => {
+        const saved = { page: f.page, rect: { ...f.rect }, name: f.name, type: f.type, value: '' };
+        if (f.type === 'select') saved.options = f.options;
+        return saved;
+      });
 
       // Reuse the existing source-PDF record when re-saving a template we
       // already opened, rather than storing a duplicate copy of the bytes.
@@ -608,6 +742,7 @@ window.EPDF = window.EPDF || {};
         pageCount: state.pdfDoc.numPages,
         pageSizes,
         fields,
+        pageRotations: state.pageRotations,
       });
       state.currentTemplateId = saved.id;
 
@@ -680,6 +815,7 @@ window.EPDF = window.EPDF || {};
   function wireToolbar() {
     els.toolSelect.addEventListener('click', () => setTool('select'));
     els.toolText.addEventListener('click', () => setTool('draw-text'));
+    els.toolCheckbox.addEventListener('click', () => setTool('draw-checkbox'));
     els.undoBtn.addEventListener('click', performUndo);
     document.addEventListener('keydown', (e) => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z' || e.shiftKey) return;
@@ -796,7 +932,9 @@ window.EPDF = window.EPDF || {};
   }
 
   function currentRotation() {
-    return { page: state.pageNumber, degrees: state.pageRotation };
+    return Object.keys(state.pageRotations)
+      .map((page) => ({ page: Number(page), degrees: state.pageRotations[page] }))
+      .filter((r) => r.degrees);
   }
 
   async function buildExportBytes() {
@@ -959,6 +1097,7 @@ window.EPDF = window.EPDF || {};
     wireDropzone();
     wireToolbar();
     wireZoom();
+    wirePageNav();
     wireResize();
     wireExportSheet();
     wireReferencePanel();

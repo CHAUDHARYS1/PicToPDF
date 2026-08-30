@@ -4,7 +4,10 @@
 window.EPDF = window.EPDF || {};
 
 EPDF.FieldModel = (function () {
-  const TYPES = ['text', 'number', 'checkbox', 'date'];
+  // 'radio': same-named fields form a mutually-exclusive group (see
+  // createStore's update() below). 'select': a fixed-choice dropdown —
+  // carries an extra `options: [{value, label}, ...]` array.
+  const TYPES = ['text', 'number', 'checkbox', 'radio', 'select', 'date'];
   const MIN_SIZE = 8; // pt — degenerate-drag guard
 
   let nextId = 1;
@@ -15,7 +18,7 @@ EPDF.FieldModel = (function () {
 
   function createField(partial) {
     const type = TYPES.includes(partial.type) ? partial.type : 'text';
-    return {
+    const field = {
       id: partial.id || newFieldId(),
       page: partial.page || 1,
       rect: {
@@ -29,6 +32,8 @@ EPDF.FieldModel = (function () {
       value: partial.value ?? '',
       order: partial.order ?? 0,
     };
+    if (type === 'select') field.options = Array.isArray(partial.options) ? partial.options : [];
+    return field;
   }
 
   /**
@@ -92,8 +97,29 @@ EPDF.FieldModel = (function () {
       const result = validate(merged);
       if (!result.ok) { if (!valueOnly) undoStack.pop(); throw new Error(result.error); }
 
-      fields = fields.map((f) => (f.id === id ? result.field : f));
-      emit({ type: 'update', field: result.field, valueOnly });
+      // Radio fields sharing a name form a group — checking one clears any
+      // other checked field in that group, same as a real PDF radio group
+      // (our fields just aren't nested under one shared parent to get this
+      // structurally; see pdf-render.js's mapAnnotationToField for how a
+      // detected radio group's fieldName carries over into `name` here).
+      let radioCascaded = false;
+      if (result.field.type === 'radio' && result.field.value === 'true') {
+        fields = fields.map((f) => {
+          if (f.id === id) return result.field;
+          if (f.type === 'radio' && f.name === result.field.name && f.value) {
+            radioCascaded = true;
+            return { ...f, value: '' };
+          }
+          return f;
+        });
+      } else {
+        fields = fields.map((f) => (f.id === id ? result.field : f));
+      }
+
+      // A radio cascade silently changes sibling fields too — a single-field
+      // valueOnly refresh (see canvas-editor.js's store subscription) would
+      // miss them, so force the full re-layout an ordinary change gets.
+      emit({ type: 'update', field: result.field, valueOnly: valueOnly && !radioCascaded });
       return result.field;
     }
 
