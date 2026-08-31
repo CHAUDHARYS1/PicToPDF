@@ -130,6 +130,20 @@
     <button class="btn sm danger-ghost" id="draw-clear-btn" type="button"><i class="ph ph-eraser"></i>Clear drawings</button>
   </div>
 
+  <div class="field-toolbar" id="field-toolbar" hidden>
+    <div class="fontsize-group" id="fontsize-group" hidden>
+      <span class="meta">Font size</span>
+      <button class="btn sm icon" id="fontsize-dec" type="button" aria-label="Decrease font size"><i class="ph ph-minus"></i></button>
+      <span class="fontsize-value" id="fontsize-value">10 pt</span>
+      <button class="btn sm icon" id="fontsize-inc" type="button" aria-label="Increase font size"><i class="ph ph-plus"></i></button>
+      <button class="btn sm subtle" id="fontsize-auto" type="button">Auto</button>
+    </div>
+    <button class="btn sm" id="checkbox-greyout-btn" type="button" hidden>
+      <i class="ph ph-eye-slash"></i>Grey out
+    </button>
+    <div class="spacer"></div>
+  </div>
+
   <div class="split" id="split" hidden>
     <div class="pages-panel" id="pages-panel" hidden>
       <div class="pages-list" id="pages-list"></div>
