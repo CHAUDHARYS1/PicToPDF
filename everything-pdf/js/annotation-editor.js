@@ -88,14 +88,14 @@ EPDF.AnnotationEditor = (function () {
         ctx.beginPath();
         pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
         ctx.stroke();
-      } else if (shape.type === 'arrow') {
+      } else if (shape.type === 'arrow' || shape.type === 'line') {
         const p1 = PdfRender.pdfPointToScreen(viewport, shape.x1, shape.y1);
         const p2 = PdfRender.pdfPointToScreen(viewport, shape.x2, shape.y2);
         ctx.beginPath();
         ctx.moveTo(p1.x, p1.y);
         ctx.lineTo(p2.x, p2.y);
         ctx.stroke();
-        drawArrowhead(ctx, p1, p2, Math.max(10, ctx.lineWidth * 3.5));
+        if (shape.type === 'arrow') drawArrowhead(ctx, p1, p2, Math.max(10, ctx.lineWidth * 3.5));
       } else if (shape.type === 'rect') {
         const box = PdfRender.rectToScreen(viewport, shape);
         ctx.strokeRect(box.left, box.top, box.width, box.height);
@@ -150,7 +150,7 @@ EPDF.AnnotationEditor = (function () {
         ctx.beginPath();
         live.screenPoints.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
         ctx.stroke();
-      } else if (live.type === 'arrow') {
+      } else if (live.type === 'arrow' || live.type === 'line') {
         ctx.beginPath();
         ctx.moveTo(live.screenStart.x, live.screenStart.y);
         ctx.lineTo(live.screenEnd.x, live.screenEnd.y);
@@ -173,7 +173,7 @@ EPDF.AnnotationEditor = (function () {
 
     function shapeScreenBounds(viewport, shape) {
       if (shape.type === 'rect' || shape.type === 'ellipse') return PdfRender.rectToScreen(viewport, shape);
-      if (shape.type === 'arrow') {
+      if (shape.type === 'arrow' || shape.type === 'line') {
         const p1 = PdfRender.pdfPointToScreen(viewport, shape.x1, shape.y1);
         const p2 = PdfRender.pdfPointToScreen(viewport, shape.x2, shape.y2);
         const left = Math.min(p1.x, p2.x), top = Math.min(p1.y, p2.y);
@@ -211,7 +211,7 @@ EPDF.AnnotationEditor = (function () {
         return sx >= box.left - HIT_TOLERANCE_PX && sx <= box.left + box.width + HIT_TOLERANCE_PX &&
                sy >= box.top - HIT_TOLERANCE_PX && sy <= box.top + box.height + HIT_TOLERANCE_PX;
       }
-      if (shape.type === 'arrow') {
+      if (shape.type === 'arrow' || shape.type === 'line') {
         const p1 = PdfRender.pdfPointToScreen(viewport, shape.x1, shape.y1);
         const p2 = PdfRender.pdfPointToScreen(viewport, shape.x2, shape.y2);
         return distToSegment(sx, sy, p1, p2) <= HIT_TOLERANCE_PX;
@@ -240,7 +240,7 @@ EPDF.AnnotationEditor = (function () {
 
     function translateShape(shape, dx, dy) {
       if (shape.type === 'freehand') return { ...shape, points: shape.points.map((p) => ({ x: p.x + dx, y: p.y + dy })) };
-      if (shape.type === 'arrow') return { ...shape, x1: shape.x1 + dx, y1: shape.y1 + dy, x2: shape.x2 + dx, y2: shape.y2 + dy };
+      if (shape.type === 'arrow' || shape.type === 'line') return { ...shape, x1: shape.x1 + dx, y1: shape.y1 + dy, x2: shape.x2 + dx, y2: shape.y2 + dy };
       if (shape.type === 'rect' || shape.type === 'ellipse' || shape.type === 'text') return { ...shape, x: shape.x + dx, y: shape.y + dy };
       return shape;
     }
@@ -290,10 +290,10 @@ EPDF.AnnotationEditor = (function () {
       }
       const s = drawCtx.screenStart, en = drawCtx.screenEnd;
       if (Math.hypot(en.x - s.x, en.y - s.y) < MIN_DRAW_PX) return;
-      if (drawCtx.type === 'arrow') {
+      if (drawCtx.type === 'arrow' || drawCtx.type === 'line') {
         const p1 = PdfRender.screenPointToPdf(viewport, s.x, s.y);
         const p2 = PdfRender.screenPointToPdf(viewport, en.x, en.y);
-        store.add({ page, type: 'arrow', color: drawCtx.color, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, strokeWidth: DEFAULT_STROKE });
+        store.add({ page, type: drawCtx.type, color: drawCtx.color, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, strokeWidth: DEFAULT_STROKE });
       } else {
         const box = { left: Math.min(s.x, en.x), top: Math.min(s.y, en.y), width: Math.abs(en.x - s.x), height: Math.abs(en.y - s.y) };
         const rect = PdfRender.screenToRect(viewport, box);

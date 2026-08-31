@@ -4,6 +4,7 @@
    conversion. Shape shapes:
      freehand: { points: [{x,y}, ...], color, strokeWidth }
      arrow:    { x1, y1, x2, y2, color, strokeWidth }
+     line:     { x1, y1, x2, y2, color, strokeWidth }
      rect:     { x, y, w, h, color, strokeWidth }
      ellipse:  { x, y, w, h, color, strokeWidth }
      text:     { x, y, text, fontSize, color }
@@ -72,6 +73,30 @@ EPDF.Annotations = (function () {
       emit({ type: 'clear' });
     }
 
+    // Removes every shape on `page`, then shifts every shape after it back
+    // by one page — used when a page is deleted. Outside the per-edit undo
+    // history for the same reason as field-model.js's removePage: this is a
+    // whole-document structural change app.js gates behind a confirmation
+    // dialog instead, not a single edit Undo should step back through.
+    function removePage(page) {
+      shapes = shapes
+        .filter((s) => s.page !== page)
+        .map((s) => (s.page > page ? { ...s, page: s.page - 1 } : s));
+      if (selectedId && !shapes.some((s) => s.id === selectedId)) selectedId = null;
+      emit({ type: 'remove-page' });
+    }
+
+    // Shifts every shape after `page` forward by one, then clones `page`'s
+    // own shapes onto the newly-opened page right after it — used when a
+    // page is duplicated. Also outside the per-edit undo history.
+    function duplicatePage(page) {
+      const shifted = shapes.map((s) => (s.page > page ? { ...s, page: s.page + 1 } : s));
+      const clones = shapes.filter((s) => s.page === page).map((s) => ({ ...s, id: newId(), page: page + 1 }));
+      shapes = shifted.concat(clones);
+      selectedId = null;
+      emit({ type: 'duplicate-page' });
+    }
+
     function select(id) {
       if (selectedId === id) return;
       selectedId = id;
@@ -113,7 +138,7 @@ EPDF.Annotations = (function () {
     }
 
     return {
-      add, update, remove, clear, select, getSelected, list, byPage, get,
+      add, update, remove, clear, removePage, duplicatePage, select, getSelected, list, byPage, get,
       subscribe, undo, canUndo, lastUndoTimestamp, clearUndoHistory, toJSON, loadJSON,
     };
   }
