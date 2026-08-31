@@ -22,6 +22,53 @@ EPDF.PdfExport = (function () {
     return Math.max(6, Math.min(11, rect.h * 0.65));
   }
 
+  function loadImageEl(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Could not load a placed image'));
+      img.src = src;
+    });
+  }
+
+  /** Rasterizes the visible (cropped) portion of a placed image field to PNG
+   *  bytes via an offscreen canvas — pdf-lib's drawImage always draws an
+   *  embedded image's full bitmap scaled into a box, so the only way to
+   *  respect field.crop is to bake the crop into the pixels before
+   *  embedding. Runs even when crop is the full image (no-op crop), keeping
+   *  one code path instead of branching on whether cropping is needed. */
+  async function cropImageToPngBytes(src, crop) {
+    const img = await loadImageEl(src);
+    const sx = Math.round(crop.x * img.naturalWidth);
+    const sy = Math.round(crop.y * img.naturalHeight);
+    const sw = Math.max(1, Math.round(crop.w * img.naturalWidth));
+    const sh = Math.max(1, Math.round(crop.h * img.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = sw;
+    canvas.height = sh;
+    canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+    const dataUrl = canvas.toDataURL('image/png');
+    const binary = atob(dataUrl.split(',')[1]);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  /** Draws every placed image field directly onto its page's content
+   *  stream — images are static content the user positioned, not a
+   *  fillable value, so this runs the same way for both export modes. */
+  async function drawImageFields(pdfDoc, pages, fields) {
+    for (const field of fields) {
+      if (field.type !== 'image' || !field.src) continue;
+      const page = pages[field.page - 1];
+      if (!page) continue;
+      const { x, y, w, h } = field.rect;
+      const pngBytes = await cropImageToPngBytes(field.src, field.crop || { x: 0, y: 0, w: 1, h: 1 });
+      const embedded = await pdfDoc.embedPng(pngBytes);
+      page.drawImage(embedded, { x, y, width: w, height: h });
+    }
+  }
+
   function hexToRgbComponents(hex) {
     const n = parseInt(hex.replace('#', ''), 16);
     return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
@@ -142,8 +189,10 @@ EPDF.PdfExport = (function () {
     stripExistingFormFields(pdfDoc);
     applyRotation(pages, rotations);
     drawAnnotations(pages, annotations, rgb);
+    await drawImageFields(pdfDoc, pages, fields);
 
     fields.forEach((field) => {
+      if (field.type === 'image') return;
       const page = pages[field.page - 1];
       if (!page) return;
       const { x, y, w, h } = field.rect;
@@ -184,6 +233,7 @@ EPDF.PdfExport = (function () {
 
     applyRotation(pages, rotations);
     drawAnnotations(pages, annotations, rgb);
+    await drawImageFields(pdfDoc, pages, fields);
 
     // Radio options share one pdf-lib PDFRadioGroup object (unlike every
     // other type, which gets its own independent widget) — collect them by
@@ -191,6 +241,7 @@ EPDF.PdfExport = (function () {
     const radioGroups = new Map(); // name -> field[]
 
     fields.forEach((field) => {
+      if (field.type === 'image') return;
       if (field.type === 'radio') {
         if (!radioGroups.has(field.name)) radioGroups.set(field.name, []);
         radioGroups.get(field.name).push(field);

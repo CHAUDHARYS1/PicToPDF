@@ -218,6 +218,60 @@ input, select, textarea { font-family: inherit; }
 
 .ghost-field { position: absolute; border: 1.5px dashed var(--accent); background: rgba(67, 56, 202, .08); border-radius: 3px; pointer-events: none; }
 
+/* image field */
+/* overflow:visible overrides the base .fld's overflow:hidden (needed there
+   to clip oversized text/select content) — without it, the hover toolbar
+   (top:-30px) and the resize handles (offset outside the box) are clipped
+   away entirely and unreachable. Safe to open up here: the photo itself is
+   still clipped to its crop by .img-crop's own overflow:hidden below. */
+.fld.image { padding: 0; overflow: visible; }
+.fld.image.active::after { display: none; } /* the text-caret hint only makes sense for text fields */
+/* A visible hint that the image is interactive even before the user has
+   clicked to select it — the toolbar and resize handles below only reveal
+   on this same hover (or on selection), so the ring is what tells the user
+   there's something to hover for in the first place. */
+.fld.image:hover { box-shadow: 0 0 0 2px var(--accent-ring); }
+.img-crop { position: absolute; inset: 0; overflow: hidden; }
+.img-crop img { position: absolute; max-width: none; max-height: none; pointer-events: none; user-select: none; -webkit-user-drag: none; }
+
+/* Built into the DOM whenever the field has an image (see canvas-editor.js),
+   not only when selected — kept invisible (and, via visibility, untouchable
+   by the mouse) until the field is hovered or selected, so the toolbar and
+   resize handles are reachable without a click-to-select step first. */
+.img-controls { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 7; visibility: hidden; }
+.fld.image:hover .img-controls, .fld.image.active .img-controls { visibility: visible; }
+.crop-toggle { height: 24px; padding: 0 9px; border-radius: 5px; border: 1px solid var(--accent); background: var(--surface); color: var(--accent); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+.crop-toggle:hover { background: var(--accent-soft); }
+.crop-toggle i { font-size: 12px; }
+.lock-toggle { width: 24px; height: 24px; padding: 0; border-radius: 5px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-dim); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-family: inherit; }
+.lock-toggle.on { border-color: var(--accent); color: var(--accent); }
+.lock-toggle:hover { background: var(--accent-soft); }
+.lock-toggle i { font-size: 12px; }
+.delete-toggle { width: 24px; height: 24px; padding: 0; border-radius: 5px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-dim); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-family: inherit; }
+.delete-toggle:hover { background: var(--danger-soft); color: var(--danger); border-color: var(--danger-soft); }
+.delete-toggle i { font-size: 12px; }
+
+/* Resize handles: also built whenever the field has an image, not only when
+   selected (see canvas-editor.js), hidden the same way as .img-controls
+   above. Bigger and shadowed relative to the generic .handle default so
+   they read clearly against a busy photo instead of only against the plain
+   surface a text/checkbox field's handles sit on. */
+.fld.image .handle { visibility: hidden; width: 10px; height: 10px; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+.fld.image:hover .handle, .fld.image.active .handle { visibility: visible; }
+.fld.image .handle.tl { left: -6px; top: -6px; }
+.fld.image .handle.tr { right: -6px; top: -6px; }
+.fld.image .handle.bl { left: -6px; bottom: -6px; }
+.fld.image .handle.br { right: -6px; bottom: -6px; }
+
+/* page area drop target for the Image tool's drag-and-drop */
+.stage.image-dragover { outline: 2px dashed var(--accent); outline-offset: -8px; }
+
+/* crop editor sheet */
+.crop-stage-wrap { display: flex; justify-content: center; }
+.crop-stage { position: relative; overflow: hidden; background: #000; border-radius: 4px; max-width: 100%; }
+.crop-stage img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; user-select: none; -webkit-user-drag: none; }
+.crop-box { position: absolute; border: 1.5px solid #fff; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .55); cursor: move; }
+
 /* ── dashboard (templates + one-off edit) ── */
 .dashboard { flex: 1; overflow-y: auto; padding: 32px 28px 48px; }
 .dashboard > * { max-width: 1000px; margin-left: auto; margin-right: auto; }

@@ -9,9 +9,11 @@ EPDF.CanvasEditor = (function () {
   const DRAG_THRESHOLD = 4; // px — below this, a pointerdown+up on a field is a click-to-edit, not a drag
   const MIN_DRAG_SIZE = 6; // px — ghost boxes smaller than this on release are discarded as accidental clicks
   const DEFAULT_CHECKBOX_SIZE = 16; // pt — roughly matches a real AcroForm checkbox widget
-  const NON_EDITABLE_TYPES = ['checkbox', 'radio', 'select']; // never enter the text-input editing mode
+  const DEFAULT_IMAGE_MAX = 160; // pt — longer edge of a freshly-placed image, before the user resizes it
+  const NON_EDITABLE_TYPES = ['checkbox', 'radio', 'select', 'image']; // never enter the text-input editing mode
+  const NON_FOCUSABLE_TYPES = ['checkbox', 'radio', 'select']; // these carry their own native focusable control
 
-  function create({ overlayEl, store, getViewport, getPageNumber }) {
+  function create({ overlayEl, store, getViewport, getPageNumber, onCropRequest, onImagePlaced }) {
     const nodes = new Map(); // fieldId -> HTMLElement
     let tool = 'select';
     let editingFieldId = null;
@@ -19,6 +21,7 @@ EPDF.CanvasEditor = (function () {
     let ghostEl = null;
     let dragCtx = null;      // { fieldId, startPdf, startRect, node }
     let resizeCtx = null;    // { fieldId, corner, startPdf, startRect, node }
+    let pendingImage = null; // { src, naturalW, naturalH } armed by the Image tool, consumed on next background click
 
     function currentViewport() {
       const vp = getViewport();
@@ -56,11 +59,13 @@ EPDF.CanvasEditor = (function () {
       const isCheckbox = field.type === 'checkbox';
       const isRadio = field.type === 'radio';
       const isSelect = field.type === 'select';
+      const isImage = field.type === 'image';
 
       el.className = 'fld' +
         (field.type === 'number' ? ' num' : '') +
         (isCheckbox || isRadio ? ' checkbox' : '') +
         (isSelect ? ' select' : '') +
+        (isImage ? ' image' : '') +
         (isSelected ? ' active' : '') +
         (!field.value && !isEditing ? ' empty' : '');
 
@@ -69,8 +74,10 @@ EPDF.CanvasEditor = (function () {
       // editing starts, the <input> becomes the real tab-stop, so the
       // wrapper drops out of tab order rather than doubling it. Checkbox/
       // radio/select fields skip this entirely — their native control is
-      // already focusable on its own.
-      if (!NON_EDITABLE_TYPES.includes(field.type)) {
+      // already focusable on its own. Image fields have no native control
+      // of their own, so they stay in the NON_EDITABLE_TYPES set (skip
+      // text-edit-on-click) but keep the wrapper as their tab-stop.
+      if (!NON_FOCUSABLE_TYPES.includes(field.type)) {
         el.tabIndex = isEditing ? -1 : 0;
       } else {
         el.removeAttribute('tabindex');
@@ -132,6 +139,73 @@ EPDF.CanvasEditor = (function () {
         sel.value = field.value || '';
         sel.addEventListener('change', () => store.update(field.id, { value: sel.value }));
         el.appendChild(sel);
+      } else if (isImage) {
+        const wrap = document.createElement('div');
+        wrap.className = 'img-crop';
+        if (field.src) {
+          const img = document.createElement('img');
+          img.src = field.src;
+          img.draggable = false;
+          img.alt = '';
+          const crop = field.crop || { x: 0, y: 0, w: 1, h: 1 };
+          img.style.width = (100 / crop.w) + '%';
+          img.style.height = (100 / crop.h) + '%';
+          img.style.left = (-crop.x / crop.w * 100) + '%';
+          img.style.top = (-crop.y / crop.h * 100) + '%';
+          wrap.appendChild(img);
+        }
+        el.appendChild(wrap);
+        // Always built (not just when selected) — CSS reveals this on hover
+        // or selection (see .img-controls in styles.css), so the toolbar is
+        // reachable without first clicking the image to select it.
+        if (field.src) {
+          const controls = document.createElement('div');
+          controls.className = 'img-controls';
+
+          const cropBtn = document.createElement('button');
+          cropBtn.type = 'button';
+          cropBtn.className = 'crop-toggle';
+          cropBtn.title = 'Crop image';
+          cropBtn.setAttribute('aria-label', 'Crop image');
+          cropBtn.innerHTML = '<i class="ph-bold ph-crop"></i>Crop';
+          cropBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+          cropBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            store.select(field.id);
+            if (onCropRequest) onCropRequest(field.id);
+          });
+          controls.appendChild(cropBtn);
+
+          const locked = field.lockAspect !== false;
+          const lockBtn = document.createElement('button');
+          lockBtn.type = 'button';
+          lockBtn.className = 'lock-toggle' + (locked ? ' on' : '');
+          lockBtn.title = locked ? 'Proportional scaling on — click to unlock' : 'Proportional scaling off — click to lock';
+          lockBtn.setAttribute('aria-label', locked ? 'Turn off proportional scaling' : 'Turn on proportional scaling');
+          lockBtn.innerHTML = locked ? '<i class="ph-bold ph-lock-simple"></i>' : '<i class="ph-bold ph-lock-simple-open"></i>';
+          lockBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+          lockBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            store.select(field.id);
+            store.update(field.id, { lockAspect: !locked });
+          });
+          controls.appendChild(lockBtn);
+
+          const deleteBtn = document.createElement('button');
+          deleteBtn.type = 'button';
+          deleteBtn.className = 'delete-toggle';
+          deleteBtn.title = 'Delete image';
+          deleteBtn.setAttribute('aria-label', 'Delete image');
+          deleteBtn.innerHTML = '<i class="ph-bold ph-trash"></i>';
+          deleteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+          deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            store.remove(field.id);
+          });
+          controls.appendChild(deleteBtn);
+
+          el.appendChild(controls);
+        }
       } else {
         const span = document.createElement('span');
         span.textContent = field.value || '';
@@ -141,7 +215,11 @@ EPDF.CanvasEditor = (function () {
         el.appendChild(span);
       }
 
-      if (isSelected) {
+      // Images render their resize handles even when not selected — CSS
+      // reveals them on hover (see .fld.image .handle in styles.css), so
+      // the resize affordance doesn't require a click-to-select step first.
+      // Every other field type keeps the select-first behavior unchanged.
+      if (isSelected || (isImage && field.src)) {
         ['tl', 'tr', 'bl', 'br'].forEach((corner) => {
           const h = document.createElement('div');
           h.className = 'handle ' + corner;
@@ -276,7 +354,7 @@ EPDF.CanvasEditor = (function () {
 
     function enterEditing(fieldId) {
       const field = store.get(fieldId);
-      if (!field || field.type === 'checkbox') return;
+      if (!field || NON_EDITABLE_TYPES.includes(field.type)) return;
       editingFieldId = fieldId;
       refreshOneField(fieldId);
     }
@@ -326,9 +404,20 @@ EPDF.CanvasEditor = (function () {
       const fieldEl = e.target.closest('.fld');
       const selected = store.getSelected();
 
-      if (handleEl && fieldEl && selected && fieldEl.dataset.fieldId === selected.id) {
-        startResize(e, selected, handleEl.dataset.corner, fieldEl);
-        return;
+      // A hovered-but-not-yet-selected image also shows its handles (see
+      // renderNodeContent), so this selects-and-resizes in one gesture
+      // rather than requiring a separate click to select first. select()
+      // itself is a no-op when the owner is already the selection, so this
+      // changes nothing for the every-other-type case where a handle can
+      // only ever exist on the already-selected field anyway.
+      if (handleEl && fieldEl) {
+        const ownerId = fieldEl.dataset.fieldId;
+        const ownerField = store.get(ownerId);
+        if (ownerField) {
+          if (!selected || selected.id !== ownerId) store.select(ownerId);
+          startResize(e, ownerField, handleEl.dataset.corner, fieldEl);
+          return;
+        }
       }
 
       if (fieldEl) {
@@ -348,10 +437,43 @@ EPDF.CanvasEditor = (function () {
         startDraw(e);
       } else if (tool === 'draw-checkbox') {
         placeCheckbox(e);
+      } else if (tool === 'place-image') {
+        if (!pendingImage) return;
+        e.preventDefault();
+        const field = placeImageAt(pendingImage, overlayPoint(e));
+        pendingImage = null;
+        if (onImagePlaced) onImagePlaced(field);
       } else if (tool === 'select') {
         if (editingFieldId) exitEditing();
         store.select(null);
       }
+    }
+
+    // Images place at a default size that preserves their natural aspect
+    // ratio (so a fresh drop never looks stretched), centered on wherever
+    // the user clicked/dropped — resizing/cropping afterward is up to them.
+    function defaultImageRectAt(pdfPoint, naturalW, naturalH) {
+      let w = DEFAULT_IMAGE_MAX;
+      let h = DEFAULT_IMAGE_MAX;
+      if (naturalW && naturalH) {
+        if (naturalW >= naturalH) h = DEFAULT_IMAGE_MAX * naturalH / naturalW;
+        else w = DEFAULT_IMAGE_MAX * naturalW / naturalH;
+      }
+      return { x: pdfPoint.x - w / 2, y: pdfPoint.y - h / 2, w, h };
+    }
+
+    function placeImageAt(imgData, screenPoint) {
+      const viewport = currentViewport();
+      const pdfPoint = PdfRender.screenPointToPdf(viewport, screenPoint.x, screenPoint.y);
+      const rect = defaultImageRectAt(pdfPoint, imgData.naturalW, imgData.naturalH);
+      const n = store.list().filter((f) => f.type === 'image').length + 1;
+      const field = store.add({
+        page: getPageNumber(), rect, type: 'image', name: 'Image ' + n, value: '1',
+        src: imgData.src, crop: { x: 0, y: 0, w: 1, h: 1 },
+        naturalW: imgData.naturalW, naturalH: imgData.naturalH,
+      });
+      store.select(field.id);
+      return field;
     }
 
     // Checkboxes are click-to-place at a fixed default size (real checkbox
@@ -448,6 +570,7 @@ EPDF.CanvasEditor = (function () {
         corner,
         startPdf: PdfRender.screenPointToPdf(viewport, start.x, start.y),
         startRect: { ...field.rect },
+        lockAspect: field.type === 'image' && field.lockAspect !== false,
       };
       beginWindowTracking(
         (moveEvt) => updateResize(moveEvt),
@@ -470,6 +593,21 @@ EPDF.CanvasEditor = (function () {
       if (resizeCtx.corner.includes('l')) { x = r.x + dx; w = r.w - dx; }
       if (resizeCtx.corner.includes('t')) h = r.h + dy;
       if (resizeCtx.corner.includes('b')) { y = r.y + dy; h = r.h - dy; }
+
+      // Locked aspect: re-derive w/h from a single scale factor (driven by
+      // whichever axis the pointer actually moved further along, so a
+      // near-horizontal drag doesn't get swamped by sub-pixel vertical
+      // jitter), keeping the corner opposite the one being dragged fixed —
+      // same anchor-corner rule the unconstrained math above already uses.
+      if (resizeCtx.lockAspect && r.w > 0 && r.h > 0) {
+        const scaleW = w / r.w;
+        const scaleH = h / r.h;
+        const scale = Math.abs(scaleW - 1) >= Math.abs(scaleH - 1) ? scaleW : scaleH;
+        w = r.w * scale;
+        h = r.h * scale;
+        x = resizeCtx.corner.includes('l') ? (r.x + r.w) - w : r.x;
+        y = resizeCtx.corner.includes('b') ? (r.y + r.h) - h : r.y;
+      }
 
       const liveRect = { x, y, w: Math.max(w, 1), h: Math.max(h, 1) };
       const box = PdfRender.rectToScreen(viewport, liveRect);
@@ -551,6 +689,7 @@ EPDF.CanvasEditor = (function () {
 
       if (e.key === 'Escape') {
         if (editingFieldId) { active.blur(); return; }
+        if (tool === 'place-image') { setTool('select'); if (onImagePlaced) onImagePlaced(null); return; }
         // gesture stays 'idle' during the armed click-vs-drag disambiguation
         // window (see armClickOrDrag) even though window listeners are live,
         // so check activeGestureTeardown too, not just the gesture state.
@@ -567,10 +706,13 @@ EPDF.CanvasEditor = (function () {
 
     function setTool(next) {
       tool = next;
-      overlayEl.classList.toggle('tool-place-field', tool === 'draw-text' || tool === 'draw-checkbox');
+      if (tool !== 'place-image') pendingImage = null;
+      overlayEl.classList.toggle('tool-place-field', tool === 'draw-text' || tool === 'draw-checkbox' || tool === 'place-image');
     }
 
     function getTool() { return tool; }
+
+    function setPendingImage(imgData) { pendingImage = imgData; }
 
     function layout() { fullLayout(); }
 
@@ -581,7 +723,7 @@ EPDF.CanvasEditor = (function () {
       nodes.clear();
     }
 
-    return { setTool, getTool, layout, destroy };
+    return { setTool, getTool, layout, destroy, setPendingImage, placeImage: placeImageAt };
   }
 
   return { create };
