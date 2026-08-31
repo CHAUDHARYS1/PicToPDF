@@ -118,6 +118,7 @@
     <div class="seg" id="draw-shape-seg" role="group" aria-label="Drawing tool">
       <button type="button" data-shape="select" title="Select / move" aria-label="Select or move a drawing"><i class="ph-bold ph-cursor"></i></button>
       <button type="button" data-shape="freehand" class="on" title="Freehand" aria-label="Freehand draw"><i class="ph-bold ph-pencil-simple"></i></button>
+      <button type="button" data-shape="line" title="Straight line" aria-label="Straight line"><i class="ph-bold ph-line-segment"></i></button>
       <button type="button" data-shape="arrow" title="Arrow" aria-label="Arrow"><i class="ph-bold ph-arrow-up-right"></i></button>
       <button type="button" data-shape="rect" title="Box" aria-label="Box"><i class="ph-bold ph-square"></i></button>
       <button type="button" data-shape="ellipse" title="Circle" aria-label="Circle"><i class="ph-bold ph-circle"></i></button>
@@ -163,6 +164,12 @@
         <span id="paper-size"></span>
         <button class="rotate-btn" id="rotate-btn" type="button" aria-label="Rotate page 90 degrees">
           <i class="ph ph-arrow-clockwise"></i>
+        </button>
+        <button class="rotate-btn" id="duplicate-page-btn" type="button" title="Duplicate this page" aria-label="Duplicate this page">
+          <i class="ph ph-copy"></i>
+        </button>
+        <button class="rotate-btn danger" id="delete-page-btn" type="button" title="Delete this page" aria-label="Delete this page">
+          <i class="ph ph-trash"></i>
         </button>
       </div>
 
@@ -317,6 +324,7 @@
 <script src="/everything-pdf/js/canvas-editor.js"></script>
 <script src="/everything-pdf/js/annotation-editor.js"></script>
 <script src="/everything-pdf/js/pdf-export.js"></script>
+<script src="/everything-pdf/js/pdf-pages.js"></script>
 <script src="/everything-pdf/js/templates-db.js"></script>
 <script src="/everything-pdf/js/app.js"></script>
 </body>

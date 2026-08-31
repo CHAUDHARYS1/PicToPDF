@@ -188,8 +188,10 @@ input, select, textarea { font-family: inherit; }
 .pagebar .z button { border: none; background: none; color: inherit; font-family: inherit; cursor: pointer; display: inline-flex; padding: 2px; }
 .pagebar .z button:hover { color: var(--accent); }
 .rotate-btn { border: 1px solid var(--border); background: var(--surface); color: var(--text-dim); border-radius: 5px; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-family: inherit; }
-.rotate-btn:hover { color: var(--accent); border-color: var(--accent); }
+.rotate-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.rotate-btn:disabled { opacity: .35; cursor: not-allowed; }
 .rotate-btn i { font-size: 13px; }
+.rotate-btn.danger:hover:not(:disabled) { color: var(--danger); border-color: var(--danger); }
 
 /* pdf page + field overlay
    .page-wrap's width/height are set in JS (canvas-editor.js) to exactly match

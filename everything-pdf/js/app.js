@@ -47,7 +47,7 @@ window.EPDF = window.EPDF || {};
     referencePhotoUrl: null, // object URL of the currently loaded reference photo, or null
     refView: { scale: 1, rotation: 0, tx: 0, ty: 0 },
     currentTemplateId: null, // id of the saved template this session came from, or null (one-off edit)
-    pendingDeleteId: null,   // template id awaiting delete confirmation
+    pendingConfirmAction: null, // fn to run if the shared confirm-sheet's Confirm button is clicked, or null
     cropCtx: null,           // { fieldId, dispW, dispH, box } while the crop editor sheet is open
   };
 
@@ -78,7 +78,7 @@ window.EPDF = window.EPDF || {};
       'pages-panel', 'pages-list',
       'page-wrap', 'page-canvas', 'draw-canvas', 'field-overlay', 'pagebar', 'page-info', 'paper-size',
       'page-prev', 'page-next',
-      'zoom-out', 'zoom-in', 'zoom-pct', 'rotate-btn',
+      'zoom-out', 'zoom-in', 'zoom-pct', 'rotate-btn', 'duplicate-page-btn', 'delete-page-btn',
       'docname', 'docname-title', 'doc-sep', 'autosave', 'templates-btn',
       'theme-toggle', 'fullscreen-btn', 'print-btn', 'save-template-btn', 'reference-btn', 'export-btn',
       'tool-select', 'tool-text', 'tool-checkbox', 'tool-image', 'tool-draw', 'undo-btn',
@@ -96,7 +96,7 @@ window.EPDF = window.EPDF || {};
       'ref-scratch', 'ref-copy-btn', 'ref-file-input',
       'template-name-scrim', 'template-name-sheet', 'template-name-input',
       'template-name-cancel', 'template-name-confirm',
-      'confirm-scrim', 'confirm-sheet', 'confirm-message', 'confirm-cancel', 'confirm-ok',
+      'confirm-scrim', 'confirm-sheet', 'confirm-title', 'confirm-message', 'confirm-cancel', 'confirm-ok',
       'crop-scrim', 'crop-sheet', 'crop-stage', 'crop-image', 'crop-box', 'crop-cancel', 'crop-apply',
     ].forEach((id) => { els[toCamel(id)] = document.getElementById(id); });
   }
@@ -271,6 +271,80 @@ window.EPDF = window.EPDF || {};
     scheduleAutosave();
   }
 
+  // ── duplicate / delete page ───────────────────────────────────────
+  // Both actually rewrite the underlying PDF via pdf-lib (see pdf-pages.js)
+  // and reload it through pdf.js, then remap every page-indexed piece of
+  // state (field/annotation `page`, pageRotations keys, state.pageNumber)
+  // to match. Deliberately not routed through the field/annotation undo
+  // stacks — like rotation, this changes the document's page count itself,
+  // which the per-edit Undo button has no way to reverse — deletion goes
+  // through a confirmation dialog instead.
+
+  function shiftRotationsForDuplicate(rotations, page) {
+    const shifted = {};
+    Object.keys(rotations).forEach((key) => {
+      const n = Number(key);
+      shifted[n > page ? n + 1 : n] = rotations[key];
+    });
+    if (rotations[page]) shifted[page + 1] = rotations[page]; // the copy inherits the original's rotation
+    return shifted;
+  }
+
+  function shiftRotationsForRemove(rotations, page) {
+    const shifted = {};
+    Object.keys(rotations).forEach((key) => {
+      const n = Number(key);
+      if (n === page) return;
+      shifted[n > page ? n - 1 : n] = rotations[key];
+    });
+    return shifted;
+  }
+
+  async function duplicatePage(pageNum) {
+    if (!state.pdfDoc || !state.originalBytes) return;
+    const newBytes = await EPDF.PdfPages.duplicatePage(state.originalBytes, pageNum);
+    state.originalBytes = newBytes;
+    state.pdfDoc = await PdfRender.loadPdf(newBytes.slice(0));
+    state.pageRotations = shiftRotationsForDuplicate(state.pageRotations, pageNum);
+    state.store.duplicatePage(pageNum);
+    state.annotationStore.duplicatePage(pageNum);
+    // A page-structure change invalidates any undo entry recorded before
+    // it — restoring one would silently revert this page shift (via the
+    // store's own undo(), which restores its whole snapshot) while the
+    // actual PDF stays duplicated, desyncing every field/shape's page from
+    // the document. Clear both stacks rather than risk that.
+    state.store.clearUndoHistory();
+    state.annotationStore.clearUndoHistory();
+    updateUndoButton();
+    state.pageNumber = pageNum + 1; // jump to the new copy
+    await rerenderPage();
+    renderPagesPanel();
+    scheduleAutosave();
+  }
+
+  async function deletePage(pageNum) {
+    if (!state.pdfDoc || !state.originalBytes || state.pdfDoc.numPages <= 1) return;
+    const newBytes = await EPDF.PdfPages.removePage(state.originalBytes, pageNum);
+    state.originalBytes = newBytes;
+    state.pdfDoc = await PdfRender.loadPdf(newBytes.slice(0));
+    state.pageRotations = shiftRotationsForRemove(state.pageRotations, pageNum);
+    state.store.removePage(pageNum);
+    state.annotationStore.removePage(pageNum);
+    // See duplicatePage()'s comment above — same desync risk applies here.
+    state.store.clearUndoHistory();
+    state.annotationStore.clearUndoHistory();
+    updateUndoButton();
+    state.pageNumber = Math.min(pageNum, state.pdfDoc.numPages);
+    await rerenderPage();
+    renderPagesPanel();
+    scheduleAutosave();
+  }
+
+  function confirmDeletePage(pageNum) {
+    if (!state.pdfDoc || state.pdfDoc.numPages <= 1) return;
+    openConfirm('Delete page?', `Page ${pageNum} and everything on it will be deleted. This can't be undone.`, () => deletePage(pageNum));
+  }
+
   // ── page navigator (prev/next + left-side thumbnail sidebar) ──────
 
   function goToPage(n) {
@@ -286,6 +360,8 @@ window.EPDF = window.EPDF || {};
     if (!state.pdfDoc) return;
     els.pagePrev.disabled = state.pageNumber <= 1;
     els.pageNext.disabled = state.pageNumber >= state.pdfDoc.numPages;
+    // A PDF always needs at least one page — refuse to delete the last one.
+    els.deletePageBtn.disabled = state.pdfDoc.numPages <= 1;
   }
 
   function updatePagesPanelActive() {
@@ -451,6 +527,7 @@ window.EPDF = window.EPDF || {};
       const hints = {
         select: 'Click a drawing to select it — drag to move, Delete to remove',
         freehand: 'Drag on the page to draw',
+        line: 'Drag to draw a straight line',
         arrow: 'Drag to draw an arrow',
         rect: 'Drag to draw a box',
         ellipse: 'Drag to draw a circle',
@@ -923,24 +1000,34 @@ window.EPDF = window.EPDF || {};
     });
   }
 
-  function openConfirmDelete(id) {
-    state.pendingDeleteId = id;
-    const nameEl = els.templateGrid.querySelector(`.tmpl-card[data-id="${id}"] .tmpl-name`);
-    const name = nameEl ? nameEl.textContent : 'This template';
-    els.confirmMessage.textContent = `"${name}" and its saved field layout will be deleted. This can't be undone.`;
+  // Generic confirmation sheet — one shared modal, armed with whatever
+  // action should run if the user confirms. Used by both template deletion
+  // and page deletion below.
+  function openConfirm(title, message, onConfirm) {
+    state.pendingConfirmAction = onConfirm;
+    els.confirmTitle.textContent = title;
+    els.confirmMessage.textContent = message;
     els.confirmScrim.hidden = false;
     els.confirmSheet.hidden = false;
   }
   function closeConfirmSheet() {
     els.confirmScrim.hidden = true;
     els.confirmSheet.hidden = true;
-    state.pendingDeleteId = null;
+    state.pendingConfirmAction = null;
   }
-  async function confirmDelete() {
-    if (!state.pendingDeleteId) return;
-    await EPDF.TemplatesDb.deleteTemplate(state.pendingDeleteId);
+  async function handleConfirmOk() {
+    const action = state.pendingConfirmAction;
     closeConfirmSheet();
-    renderTemplateGrid();
+    if (action) await action();
+  }
+
+  function openConfirmDeleteTemplate(id) {
+    const nameEl = els.templateGrid.querySelector(`.tmpl-card[data-id="${id}"] .tmpl-name`);
+    const name = nameEl ? nameEl.textContent : 'This template';
+    openConfirm('Delete template?', `"${name}" and its saved field layout will be deleted. This can't be undone.`, async () => {
+      await EPDF.TemplatesDb.deleteTemplate(id);
+      renderTemplateGrid();
+    });
   }
 
   async function openTemplateNameSheet() {
@@ -1033,7 +1120,7 @@ window.EPDF = window.EPDF || {};
     els.resumeDiscardBtn.addEventListener('click', discardSession);
     els.templateGrid.addEventListener('click', (e) => {
       const delBtn = e.target.closest('[data-delete-id]');
-      if (delBtn) { openConfirmDelete(delBtn.dataset.deleteId); return; }
+      if (delBtn) { openConfirmDeleteTemplate(delBtn.dataset.deleteId); return; }
       const openBtn = e.target.closest('[data-open-id]');
       if (openBtn) openTemplate(openBtn.dataset.openId);
     });
@@ -1048,7 +1135,7 @@ window.EPDF = window.EPDF || {};
 
     els.confirmCancel.addEventListener('click', closeConfirmSheet);
     els.confirmScrim.addEventListener('click', closeConfirmSheet);
-    els.confirmOk.addEventListener('click', confirmDelete);
+    els.confirmOk.addEventListener('click', handleConfirmOk);
 
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
@@ -1102,6 +1189,8 @@ window.EPDF = window.EPDF || {};
     els.zoomOut.addEventListener('click', () => changeZoom(-8));
     els.zoomIn.addEventListener('click', () => changeZoom(8));
     els.rotateBtn.addEventListener('click', rotatePage);
+    els.duplicatePageBtn.addEventListener('click', () => duplicatePage(state.pageNumber));
+    els.deletePageBtn.addEventListener('click', () => confirmDeletePage(state.pageNumber));
   }
 
   function wireResize() {

@@ -125,6 +125,8 @@ EPDF.PdfExport = (function () {
             color,
           });
         });
+      } else if (shape.type === 'line') {
+        page.drawLine({ start: { x: shape.x1, y: shape.y1 }, end: { x: shape.x2, y: shape.y2 }, thickness, color });
       } else if (shape.type === 'rect') {
         page.drawRectangle({ x: shape.x, y: shape.y, width: shape.w, height: shape.h, borderColor: color, borderWidth: thickness });
       } else if (shape.type === 'ellipse') {

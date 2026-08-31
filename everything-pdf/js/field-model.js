@@ -162,6 +162,37 @@ EPDF.FieldModel = (function () {
       emit({ type: 'remove', field: existing });
     }
 
+    // Removes every field on `page`, then shifts every field after it back
+    // by one page — used when a page is deleted. Deliberately outside the
+    // per-edit undo history: like page rotation, this is a whole-document
+    // structural change (the underlying PDF itself loses a page — see
+    // app.js's deletePage(), which also rewrites state.pdfDoc), not a
+    // single edit the Undo button's field/shape-only history could safely
+    // step back through. app.js guards this behind a confirmation dialog
+    // instead.
+    function removePage(page) {
+      fields = fields
+        .filter((f) => f.page !== page)
+        .map((f) => (f.page > page ? { ...f, page: f.page - 1 } : f));
+      if (selectedId && !fields.some((f) => f.id === selectedId)) selectedId = null;
+      emit({ type: 'remove-page' });
+    }
+
+    // Shifts every field after `page` forward by one, then clones `page`'s
+    // own fields (fresh ids, so a duplicated radio group's shared `name`
+    // still only cross-cancels within its own page) onto the newly-opened
+    // page right after it — used when a page is duplicated. Also outside
+    // the per-edit undo history, for the same reason as removePage above.
+    function duplicatePage(page) {
+      const shifted = fields.map((f) => (f.page > page ? { ...f, page: f.page + 1 } : f));
+      const clones = fields
+        .filter((f) => f.page === page)
+        .map((f) => ({ ...f, id: newFieldId(), page: page + 1, order: orderCounter++ }));
+      fields = shifted.concat(clones);
+      selectedId = null;
+      emit({ type: 'duplicate-page' });
+    }
+
     function undo() {
       if (undoStack.length === 0) return false;
       const snap = undoStack.pop();
@@ -214,7 +245,10 @@ EPDF.FieldModel = (function () {
       return () => listeners.delete(fn);
     }
 
-    return { add, update, remove, select, getSelected, list, byPage, get, subscribe, undo, canUndo, lastUndoTimestamp, clearUndoHistory };
+    return {
+      add, update, remove, removePage, duplicatePage, select, getSelected, list, byPage, get,
+      subscribe, undo, canUndo, lastUndoTimestamp, clearUndoHistory,
+    };
   }
 
   return { TYPES, TEXT_LIKE_TYPES, MIN_FONT_SIZE, MAX_FONT_SIZE, createField, validate, createStore };
