@@ -85,6 +85,8 @@ window.EPDF = window.EPDF || {};
       'image-file-input',
       'field-count-meta',
       'draw-toolbar', 'draw-shape-seg', 'draw-colors', 'draw-hint', 'draw-delete-btn', 'draw-clear-btn',
+      'field-toolbar', 'fontsize-group', 'fontsize-dec', 'fontsize-inc', 'fontsize-value', 'fontsize-auto',
+      'checkbox-greyout-btn',
       'export-scrim', 'export-sheet', 'export-title', 'export-field-count',
       'export-filename', 'export-mode-flatten', 'export-mode-editable',
       'export-summary', 'export-cancel', 'export-confirm',
@@ -134,7 +136,7 @@ window.EPDF = window.EPDF || {};
     state.zoomPercent = loadSavedZoom();
     state.pageRotations = opts.pageRotations || {};
     state.store = FieldModel.createStore();
-    state.store.subscribe(() => { updateFieldCountMeta(); updateUndoButton(); scheduleAutosave(); });
+    state.store.subscribe(() => { updateFieldCountMeta(); updateUndoButton(); updateFieldToolbar(); scheduleAutosave(); });
     state.annotationStore = Annotations.createStore();
     state.annotationStore.subscribe(() => { updateUndoButton(); updateDrawDeleteButton(); scheduleAutosave(); });
 
@@ -147,6 +149,7 @@ window.EPDF = window.EPDF || {};
         value: f.type === 'image' ? '1' : (opts.preserveValues ? (f.value || '') : ''),
         options: f.options,
         src: f.src, crop: f.crop, naturalW: f.naturalW, naturalH: f.naturalH, lockAspect: f.lockAspect,
+        fontSize: f.fontSize, disabled: f.disabled,
       }));
     } else {
       // Auto-import any real, already-embedded AcroForm fields so the user
@@ -218,6 +221,7 @@ window.EPDF = window.EPDF || {};
     updateFieldCountMeta();
     updateUndoButton();
     updateDrawDeleteButton();
+    updateFieldToolbar();
     renderPagesPanel();
   }
 
@@ -430,6 +434,7 @@ window.EPDF = window.EPDF || {};
     els.fieldOverlay.classList.toggle('tool-draw', tool === 'draw');
     els.drawToolbar.hidden = tool !== 'draw';
     if (state.annotationEditor) state.annotationEditor.setActive(tool === 'draw');
+    updateFieldToolbar();
   }
 
   // ── draw tool (freehand/shape annotations) ──────────────────────
@@ -482,6 +487,66 @@ window.EPDF = window.EPDF || {};
   function updateDrawDeleteButton() {
     const selected = state.annotationStore && state.annotationStore.getSelected();
     els.drawDeleteBtn.disabled = !selected;
+  }
+
+  // ── field sub-toolbar (font size for text-like fields, grey-out for
+  // checkbox/radio) — shown while a compatible field is selected with the
+  // Select tool. Image fields have their own inline controls already (see
+  // canvas-editor.js's .img-controls), so they don't get a row here. ──
+
+  const FIELD_FONT_SIZE_STEP = 1;
+  const DEFAULT_FIELD_FONT_SIZE = 10; // pt — mirrors canvas-editor.js's own default
+
+  function wireFieldToolbar() {
+    els.fontsizeDec.addEventListener('click', () => {
+      const selected = state.store && state.store.getSelected();
+      if (!selected) return;
+      const current = selected.fontSize || DEFAULT_FIELD_FONT_SIZE;
+      state.store.update(selected.id, { fontSize: current - FIELD_FONT_SIZE_STEP });
+    });
+    els.fontsizeInc.addEventListener('click', () => {
+      const selected = state.store && state.store.getSelected();
+      if (!selected) return;
+      const current = selected.fontSize || DEFAULT_FIELD_FONT_SIZE;
+      state.store.update(selected.id, { fontSize: current + FIELD_FONT_SIZE_STEP });
+    });
+    els.fontsizeAuto.addEventListener('click', () => {
+      const selected = state.store && state.store.getSelected();
+      if (!selected) return;
+      state.store.update(selected.id, { fontSize: null });
+    });
+    els.checkboxGreyoutBtn.addEventListener('click', () => {
+      const selected = state.store && state.store.getSelected();
+      if (!selected) return;
+      state.store.update(selected.id, { disabled: !selected.disabled });
+    });
+  }
+
+  function updateFieldToolbar() {
+    const selected = state.store && state.store.getSelected();
+    const tool = state.editor ? state.editor.getTool() : 'select';
+    const eligible = !!(selected && tool === 'select' && selected.type !== 'image');
+    els.fieldToolbar.hidden = !eligible;
+    if (!eligible) return;
+
+    const isTextLike = FieldModel.TEXT_LIKE_TYPES.includes(selected.type);
+    const isCheckbox = selected.type === 'checkbox';
+    els.fontsizeGroup.hidden = !isTextLike;
+    els.checkboxGreyoutBtn.hidden = !isCheckbox;
+    if (!isTextLike && !isCheckbox) { els.fieldToolbar.hidden = true; return; } // e.g. radio — nothing to show
+
+    if (isTextLike) {
+      const size = selected.fontSize || DEFAULT_FIELD_FONT_SIZE;
+      els.fontsizeValue.textContent = size + ' pt';
+      els.fontsizeAuto.classList.toggle('active', !selected.fontSize);
+      els.fontsizeDec.disabled = size <= FieldModel.MIN_FONT_SIZE;
+      els.fontsizeInc.disabled = size >= FieldModel.MAX_FONT_SIZE;
+    } else {
+      els.checkboxGreyoutBtn.classList.toggle('active', !!selected.disabled);
+      els.checkboxGreyoutBtn.innerHTML = selected.disabled
+        ? '<i class="ph ph-eye"></i>Un-grey'
+        : '<i class="ph ph-eye-slash"></i>Grey out';
+    }
   }
 
   // ── image tool (toolbar file-pick + drag-and-drop placement) ─────
@@ -911,6 +976,8 @@ window.EPDF = window.EPDF || {};
       const fields = state.store.list().map((f) => {
         const saved = { page: f.page, rect: { ...f.rect }, name: f.name, type: f.type, value: '' };
         if (f.type === 'select') saved.options = f.options;
+        if (FieldModel.TEXT_LIKE_TYPES.includes(f.type)) saved.fontSize = f.fontSize;
+        if (f.type === 'checkbox') saved.disabled = f.disabled;
         // An image is the template's static content, not per-fill data —
         // unlike a text value, it should survive being reopened.
         if (f.type === 'image') {
@@ -1307,6 +1374,7 @@ window.EPDF = window.EPDF || {};
     wireReferencePanel();
     wireDashboard();
     wireDrawToolbar();
+    wireFieldToolbar();
     wireImageTool();
     wireCropEditor();
     wireFullscreen();

@@ -10,6 +10,7 @@ EPDF.CanvasEditor = (function () {
   const MIN_DRAG_SIZE = 6; // px — ghost boxes smaller than this on release are discarded as accidental clicks
   const DEFAULT_CHECKBOX_SIZE = 16; // pt — roughly matches a real AcroForm checkbox widget
   const DEFAULT_IMAGE_MAX = 160; // pt — longer edge of a freshly-placed image, before the user resizes it
+  const DEFAULT_FIELD_FONT_SIZE = 10; // pt — used when a text-like field has no explicit fontSize (auto)
   const NON_EDITABLE_TYPES = ['checkbox', 'radio', 'select', 'image']; // never enter the text-input editing mode
   const NON_FOCUSABLE_TYPES = ['checkbox', 'radio', 'select']; // these carry their own native focusable control
 
@@ -67,7 +68,8 @@ EPDF.CanvasEditor = (function () {
         (isSelect ? ' select' : '') +
         (isImage ? ' image' : '') +
         (isSelected ? ' active' : '') +
-        (!field.value && !isEditing ? ' empty' : '');
+        (!field.value && !isEditing ? ' empty' : '') +
+        (isCheckbox && field.disabled ? ' disabled' : '');
 
       // The wrapper div is the field's own tab-stop when idle, so Tab/
       // Shift+Tab can reach a field it hasn't clicked into yet. Once
@@ -120,6 +122,7 @@ EPDF.CanvasEditor = (function () {
         // see field-model.js's update()).
         if (isRadio) cb.name = 'epdf-radio-' + field.name;
         cb.checked = field.value === 'true';
+        cb.disabled = !!field.disabled;
         cb.addEventListener('pointerdown', (e) => e.stopPropagation());
         cb.addEventListener('change', () => store.update(field.id, { value: cb.checked ? 'true' : '' }));
         el.appendChild(cb);
@@ -235,6 +238,13 @@ EPDF.CanvasEditor = (function () {
       el.style.top = box.top + 'px';
       el.style.width = box.width + 'px';
       el.style.height = box.height + 'px';
+      // Font size is stored in PDF points (see field-model.js) — scale it by
+      // the viewport the same way every other on-page measurement is, so it
+      // tracks zoom instead of staying a fixed screen size. Set on the
+      // wrapper div (not the input/span directly) so both the display span
+      // and the editing <input> pick it up via their `font: inherit` rule.
+      const pt = field.fontSize || DEFAULT_FIELD_FONT_SIZE;
+      el.style.fontSize = (pt * viewport.scale) + 'px';
     }
 
     // Tab order should follow how a person reads the page, not field

@@ -18,8 +18,12 @@ EPDF.PdfExport = (function () {
     return opt ? opt.label : displayValue(field);
   }
 
-  function fontSizeFor(rect) {
-    return Math.max(6, Math.min(11, rect.h * 0.65));
+  // Respects an explicit user-chosen field.fontSize (see field-model.js /
+  // canvas-editor.js's field sub-toolbar); falls back to the previous
+  // auto-fit-by-rect-height behavior when the field has none.
+  function fontSizeFor(field) {
+    if (field.fontSize) return field.fontSize;
+    return Math.max(6, Math.min(11, field.rect.h * 0.65));
   }
 
   function loadImageEl(src) {
@@ -198,7 +202,10 @@ EPDF.PdfExport = (function () {
       const { x, y, w, h } = field.rect;
 
       if (field.type === 'checkbox' || field.type === 'radio') {
-        if (field.value === 'true') {
+        // Greyed-out fields are marked not-applicable — never bake in a
+        // checkmark for them even if a value lingers from before they were
+        // disabled.
+        if (field.value === 'true' && !field.disabled) {
           drawCheckmark(page, field.rect, rgb(...TEXT_COLOR));
         }
         return;
@@ -206,7 +213,7 @@ EPDF.PdfExport = (function () {
 
       const value = field.type === 'select' ? selectDisplayText(field) : displayValue(field);
       if (!value) return;
-      const fontSize = fontSizeFor(field.rect);
+      const fontSize = fontSizeFor(field);
       page.drawText(value, {
         x: x + 4,
         y: y + (h - fontSize) / 2 + fontSize * 0.15,
@@ -256,7 +263,8 @@ EPDF.PdfExport = (function () {
       if (field.type === 'checkbox') {
         const cb = form.createCheckBox(widgetName);
         cb.addToPage(page, { x, y, width: w, height: h });
-        if (field.value === 'true') cb.check();
+        if (field.value === 'true' && !field.disabled) cb.check();
+        if (field.disabled) cb.enableReadOnly();
         return;
       }
 

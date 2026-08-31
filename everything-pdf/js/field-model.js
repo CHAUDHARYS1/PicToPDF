@@ -9,6 +9,9 @@ EPDF.FieldModel = (function () {
   // carries an extra `options: [{value, label}, ...]` array.
   const TYPES = ['text', 'number', 'checkbox', 'radio', 'select', 'date', 'image'];
   const MIN_SIZE = 8; // pt — degenerate-drag guard
+  const TEXT_LIKE_TYPES = ['text', 'number', 'select', 'date']; // support an adjustable fontSize
+  const MIN_FONT_SIZE = 6; // pt
+  const MAX_FONT_SIZE = 48; // pt
 
   let nextId = 1;
   function newFieldId() {
@@ -33,6 +36,15 @@ EPDF.FieldModel = (function () {
       order: partial.order ?? 0,
     };
     if (type === 'select') field.options = Array.isArray(partial.options) ? partial.options : [];
+    if (TEXT_LIKE_TYPES.includes(type)) {
+      // null means "auto-sized" — no explicit fontSize the user has chosen.
+      field.fontSize = partial.fontSize || null;
+    }
+    // Scoped to plain checkboxes only — a radio option's "disabled" would be
+    // ambiguous with pdf-lib's group-level (not per-option) read-only export.
+    if (type === 'checkbox') {
+      field.disabled = !!partial.disabled;
+    }
     if (type === 'image') {
       field.src = partial.src || '';
       field.crop = partial.crop && typeof partial.crop === 'object'
@@ -59,6 +71,10 @@ EPDF.FieldModel = (function () {
     }
     if (f.rect.w < MIN_SIZE || f.rect.h < MIN_SIZE) {
       return { ok: false, error: 'Field is too small.' };
+    }
+
+    if (f.fontSize) {
+      f.fontSize = Math.max(MIN_FONT_SIZE, Math.min(MAX_FONT_SIZE, f.fontSize));
     }
 
     return { ok: true, field: f };
@@ -201,5 +217,5 @@ EPDF.FieldModel = (function () {
     return { add, update, remove, select, getSelected, list, byPage, get, subscribe, undo, canUndo, lastUndoTimestamp, clearUndoHistory };
   }
 
-  return { TYPES, createField, validate, createStore };
+  return { TYPES, TEXT_LIKE_TYPES, MIN_FONT_SIZE, MAX_FONT_SIZE, createField, validate, createStore };
 })();
