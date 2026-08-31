@@ -48,6 +48,7 @@ window.EPDF = window.EPDF || {};
     refView: { scale: 1, rotation: 0, tx: 0, ty: 0 },
     currentTemplateId: null, // id of the saved template this session came from, or null (one-off edit)
     pendingDeleteId: null,   // template id awaiting delete confirmation
+    cropCtx: null,           // { fieldId, dispW, dispH, box } while the crop editor sheet is open
   };
 
   const PAPER_SIZES = [
@@ -80,7 +81,8 @@ window.EPDF = window.EPDF || {};
       'zoom-out', 'zoom-in', 'zoom-pct', 'rotate-btn',
       'docname', 'docname-title', 'doc-sep', 'autosave', 'templates-btn',
       'theme-toggle', 'fullscreen-btn', 'print-btn', 'save-template-btn', 'reference-btn', 'export-btn',
-      'tool-select', 'tool-text', 'tool-checkbox', 'tool-draw', 'undo-btn',
+      'tool-select', 'tool-text', 'tool-checkbox', 'tool-image', 'tool-draw', 'undo-btn',
+      'image-file-input',
       'field-count-meta',
       'draw-toolbar', 'draw-shape-seg', 'draw-colors', 'draw-hint', 'draw-delete-btn', 'draw-clear-btn',
       'export-scrim', 'export-sheet', 'export-title', 'export-field-count',
@@ -93,6 +95,7 @@ window.EPDF = window.EPDF || {};
       'template-name-scrim', 'template-name-sheet', 'template-name-input',
       'template-name-cancel', 'template-name-confirm',
       'confirm-scrim', 'confirm-sheet', 'confirm-message', 'confirm-cancel', 'confirm-ok',
+      'crop-scrim', 'crop-sheet', 'crop-stage', 'crop-image', 'crop-box', 'crop-cancel', 'crop-apply',
     ].forEach((id) => { els[toCamel(id)] = document.getElementById(id); });
   }
 
@@ -139,7 +142,11 @@ window.EPDF = window.EPDF || {};
     if (presetFields) {
       presetFields.forEach((f) => state.store.add({
         page: f.page, rect: f.rect, name: f.name, type: f.type,
-        value: opts.preserveValues ? (f.value || '') : '',
+        // Image fields aren't a fillable value like text — the image itself
+        // is the (always-present) content, so it always counts as "filled".
+        value: f.type === 'image' ? '1' : (opts.preserveValues ? (f.value || '') : ''),
+        options: f.options,
+        src: f.src, crop: f.crop, naturalW: f.naturalW, naturalH: f.naturalH, lockAspect: f.lockAspect,
       }));
     } else {
       // Auto-import any real, already-embedded AcroForm fields so the user
@@ -176,6 +183,8 @@ window.EPDF = window.EPDF || {};
       store: state.store,
       getViewport: () => state.viewport,
       getPageNumber: () => state.pageNumber,
+      onCropRequest: openCropEditor,
+      onImagePlaced: () => setTool('select'),
     });
 
     if (state.annotationEditor) state.annotationEditor.destroy();
@@ -416,6 +425,7 @@ window.EPDF = window.EPDF || {};
     els.toolSelect.classList.toggle('on', tool === 'select');
     els.toolText.classList.toggle('on', tool === 'draw-text');
     els.toolCheckbox.classList.toggle('on', tool === 'draw-checkbox');
+    els.toolImage.classList.toggle('on', tool === 'place-image');
     els.toolDraw.classList.toggle('on', tool === 'draw');
     els.fieldOverlay.classList.toggle('tool-draw', tool === 'draw');
     els.drawToolbar.hidden = tool !== 'draw';
@@ -472,6 +482,190 @@ window.EPDF = window.EPDF || {};
   function updateDrawDeleteButton() {
     const selected = state.annotationStore && state.annotationStore.getSelected();
     els.drawDeleteBtn.disabled = !selected;
+  }
+
+  // ── image tool (toolbar file-pick + drag-and-drop placement) ─────
+
+  function readImageFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error);
+      reader.onload = () => {
+        const src = reader.result;
+        const img = new Image();
+        img.onload = () => resolve({ src, naturalW: img.naturalWidth, naturalH: img.naturalHeight });
+        img.onerror = () => reject(new Error('Could not read that image'));
+        img.src = src;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function wireImageTool() {
+    els.toolImage.addEventListener('click', () => {
+      els.imageFileInput.value = '';
+      els.imageFileInput.click();
+    });
+    els.imageFileInput.addEventListener('change', async () => {
+      const file = els.imageFileInput.files[0];
+      if (!file) return;
+      try {
+        const imgData = await readImageFile(file);
+        if (!state.editor) return;
+        state.editor.setPendingImage(imgData);
+        setTool('place-image');
+      } catch (err) {
+        console.error(err);
+      }
+    });
+
+    // A drop anywhere on the stage places the image immediately, at the
+    // drop point, regardless of whatever tool was previously active — the
+    // toolbar button above is the click-to-place alternative for anyone not
+    // dragging a file in from their OS.
+    ['dragenter', 'dragover'].forEach((evt) => {
+      els.stage.addEventListener(evt, (e) => {
+        if (!state.pdfDoc) return;
+        if (!Array.from(e.dataTransfer.types || []).includes('Files')) return;
+        e.preventDefault();
+        els.stage.classList.add('image-dragover');
+      });
+    });
+    ['dragleave', 'drop'].forEach((evt) => {
+      els.stage.addEventListener(evt, (e) => {
+        e.preventDefault();
+        els.stage.classList.remove('image-dragover');
+      });
+    });
+    els.stage.addEventListener('drop', async (e) => {
+      if (!state.pdfDoc || !state.editor || !state.viewport) return;
+      const file = Array.from(e.dataTransfer.files || []).find((f) => f.type.startsWith('image/'));
+      if (!file) return;
+      try {
+        const imgData = await readImageFile(file);
+        const wrapRect = els.pageWrap.getBoundingClientRect();
+        const point = {
+          x: Math.max(0, Math.min(wrapRect.width, e.clientX - wrapRect.left)),
+          y: Math.max(0, Math.min(wrapRect.height, e.clientY - wrapRect.top)),
+        };
+        state.editor.placeImage(imgData, point);
+        setTool('select');
+      } catch (err) {
+        console.error(err);
+      }
+    });
+  }
+
+  // ── crop editor sheet (drag/resize a crop box over the full image) ──
+
+  const CROP_STAGE_MAX = 420; // px — longer edge of the crop stage
+  const CROP_MIN_PX = 24;     // px — smallest crop box the stage allows
+
+  function renderCropBox() {
+    const { box } = state.cropCtx;
+    els.cropBox.style.left = box.x + 'px';
+    els.cropBox.style.top = box.y + 'px';
+    els.cropBox.style.width = box.w + 'px';
+    els.cropBox.style.height = box.h + 'px';
+  }
+
+  function openCropEditor(fieldId) {
+    const field = state.store && state.store.get(fieldId);
+    if (!field || field.type !== 'image' || !field.src) return;
+    const naturalW = field.naturalW || 1;
+    const naturalH = field.naturalH || 1;
+    let dispW = CROP_STAGE_MAX;
+    let dispH = CROP_STAGE_MAX;
+    if (naturalW >= naturalH) dispH = Math.round(CROP_STAGE_MAX * naturalH / naturalW);
+    else dispW = Math.round(CROP_STAGE_MAX * naturalW / naturalH);
+
+    els.cropStage.style.width = dispW + 'px';
+    els.cropStage.style.height = dispH + 'px';
+    els.cropImage.src = field.src;
+
+    const crop = field.crop || { x: 0, y: 0, w: 1, h: 1 };
+    state.cropCtx = {
+      fieldId, dispW, dispH,
+      box: { x: crop.x * dispW, y: crop.y * dispH, w: crop.w * dispW, h: crop.h * dispH },
+    };
+    renderCropBox();
+    els.cropScrim.hidden = false;
+    els.cropSheet.hidden = false;
+  }
+
+  function closeCropEditor() {
+    state.cropCtx = null;
+    els.cropScrim.hidden = true;
+    els.cropSheet.hidden = true;
+  }
+
+  function clampCropBox(box, dispW, dispH) {
+    let { x, y, w, h } = box;
+    w = Math.max(CROP_MIN_PX, Math.min(w, dispW));
+    h = Math.max(CROP_MIN_PX, Math.min(h, dispH));
+    x = Math.max(0, Math.min(x, dispW - w));
+    y = Math.max(0, Math.min(y, dispH - h));
+    return { x, y, w, h };
+  }
+
+  function wireCropEditor() {
+    els.cropCancel.addEventListener('click', closeCropEditor);
+    els.cropScrim.addEventListener('click', closeCropEditor);
+
+    els.cropApply.addEventListener('click', () => {
+      if (!state.cropCtx || !state.store) return;
+      const { fieldId, box, dispW, dispH } = state.cropCtx;
+      const crop = { x: box.x / dispW, y: box.y / dispH, w: box.w / dispW, h: box.h / dispH };
+      try {
+        state.store.update(fieldId, { crop });
+      } catch (err) {
+        console.error(err);
+      }
+      closeCropEditor();
+    });
+
+    els.cropBox.addEventListener('pointerdown', (e) => {
+      if (!state.cropCtx) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const handleEl = e.target.closest('.handle');
+      const corner = handleEl ? handleEl.dataset.corner : null;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startBox = { ...state.cropCtx.box };
+      const { dispW, dispH } = state.cropCtx;
+
+      const onMove = (moveEvt) => {
+        const dx = moveEvt.clientX - startX;
+        const dy = moveEvt.clientY - startY;
+        let next;
+        if (corner) {
+          let { x, y, w, h } = startBox;
+          if (corner.includes('r')) w = startBox.w + dx;
+          if (corner.includes('l')) { x = startBox.x + dx; w = startBox.w - dx; }
+          if (corner.includes('b')) h = startBox.h + dy;
+          if (corner.includes('t')) { y = startBox.y + dy; h = startBox.h - dy; }
+          next = { x, y, w, h };
+        } else {
+          next = { ...startBox, x: startBox.x + dx, y: startBox.y + dy };
+        }
+        state.cropCtx.box = clampCropBox(next, dispW, dispH);
+        renderCropBox();
+      };
+      const onUp = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onUp);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (els.cropSheet.hidden) return;
+      if (e.key === 'Escape') closeCropEditor();
+    });
   }
 
   // ── unified undo (fields + drawings share one button/history) ────
@@ -717,6 +911,16 @@ window.EPDF = window.EPDF || {};
       const fields = state.store.list().map((f) => {
         const saved = { page: f.page, rect: { ...f.rect }, name: f.name, type: f.type, value: '' };
         if (f.type === 'select') saved.options = f.options;
+        // An image is the template's static content, not per-fill data —
+        // unlike a text value, it should survive being reopened.
+        if (f.type === 'image') {
+          saved.value = '1';
+          saved.src = f.src;
+          saved.crop = f.crop;
+          saved.naturalW = f.naturalW;
+          saved.naturalH = f.naturalH;
+          saved.lockAspect = f.lockAspect;
+        }
         return saved;
       });
 
@@ -1103,6 +1307,8 @@ window.EPDF = window.EPDF || {};
     wireReferencePanel();
     wireDashboard();
     wireDrawToolbar();
+    wireImageTool();
+    wireCropEditor();
     wireFullscreen();
     EPDFTheme.wireToggleButton(els.themeToggle);
     showDashboard();

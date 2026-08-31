@@ -99,12 +99,14 @@
       <button class="btn" id="browse-btn" type="button"><i class="ph ph-folder-open"></i>Browse files</button>
     </div>
     <input type="file" id="file-input" accept="application/pdf" hidden />
+    <input type="file" id="image-file-input" accept="image/*" hidden />
   </div>
 
   <div class="toolbar" id="toolbar" hidden>
     <button class="tool on" id="tool-select" type="button"><i class="ph ph-cursor"></i>Select</button>
     <button class="tool" id="tool-text" type="button"><i class="ph ph-textbox"></i>Text field</button>
     <button class="tool" id="tool-checkbox" type="button"><i class="ph ph-check-square"></i>Checkbox</button>
+    <button class="tool" id="tool-image" type="button"><i class="ph ph-image"></i>Image</button>
     <button class="tool" id="tool-draw" type="button"><i class="ph ph-pencil-simple"></i>Draw</button>
     <div class="tsep"></div>
     <button class="tool" id="undo-btn" type="button" disabled title="Nothing to undo"><i class="ph ph-arrow-counter-clockwise"></i>Undo</button>
@@ -249,6 +251,34 @@
       <button class="btn primary" id="template-name-confirm" type="button">
         <i class="ph-bold ph-bookmark-simple" aria-hidden="true"></i>
         Save template
+      </button>
+    </div>
+  </div>
+
+  <div class="scrim" id="crop-scrim" hidden></div>
+  <div class="sheet" id="crop-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="crop-title">
+    <div class="sheet-h">
+      <h3 id="crop-title">Crop image</h3>
+      <p class="sub" style="font-size:12px;margin-top:4px;">Drag to reposition, drag a corner to resize the crop.</p>
+    </div>
+    <div class="sheet-b">
+      <div class="crop-stage-wrap">
+        <div class="crop-stage" id="crop-stage">
+          <img id="crop-image" alt="" />
+          <div class="crop-box" id="crop-box">
+            <div class="handle tl" data-corner="tl"></div>
+            <div class="handle tr" data-corner="tr"></div>
+            <div class="handle bl" data-corner="bl"></div>
+            <div class="handle br" data-corner="br"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sheet-f">
+      <button class="btn" id="crop-cancel" type="button">Cancel</button>
+      <button class="btn primary" id="crop-apply" type="button">
+        <i class="ph-bold ph-check" aria-hidden="true"></i>
+        Apply
       </button>
     </div>
   </div>

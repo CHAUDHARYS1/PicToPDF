@@ -7,7 +7,7 @@ EPDF.FieldModel = (function () {
   // 'radio': same-named fields form a mutually-exclusive group (see
   // createStore's update() below). 'select': a fixed-choice dropdown —
   // carries an extra `options: [{value, label}, ...]` array.
-  const TYPES = ['text', 'number', 'checkbox', 'radio', 'select', 'date'];
+  const TYPES = ['text', 'number', 'checkbox', 'radio', 'select', 'date', 'image'];
   const MIN_SIZE = 8; // pt — degenerate-drag guard
 
   let nextId = 1;
@@ -33,6 +33,15 @@ EPDF.FieldModel = (function () {
       order: partial.order ?? 0,
     };
     if (type === 'select') field.options = Array.isArray(partial.options) ? partial.options : [];
+    if (type === 'image') {
+      field.src = partial.src || '';
+      field.crop = partial.crop && typeof partial.crop === 'object'
+        ? { x: partial.crop.x ?? 0, y: partial.crop.y ?? 0, w: partial.crop.w ?? 1, h: partial.crop.h ?? 1 }
+        : { x: 0, y: 0, w: 1, h: 1 };
+      field.naturalW = partial.naturalW || 0;
+      field.naturalH = partial.naturalH || 0;
+      field.lockAspect = partial.lockAspect ?? true;
+    }
     return field;
   }
 
